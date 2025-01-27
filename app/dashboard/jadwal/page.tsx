@@ -1,4 +1,7 @@
+// pages/jadwal.tsx
+
 "use client"
+
 import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase"
 import { Calendar } from "@/components/ui/calendar"
@@ -18,7 +21,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { format } from "date-fns"
 import { Clock, Trash, Edit } from "lucide-react"
 
-// Memperbarui tipe Schedule untuk menyertakan address
+// Memperbarui tipe Schedule untuk menyertakan address dan counselor_id
 type Schedule = {
   id: number
   date: Date
@@ -26,18 +29,68 @@ type Schedule = {
   title: string
   description: string
   address: string
+  counselor?: {
+    id: string
+    name: string
+    adminEmail: string
+  }
+}
+
+type Counselor = {
+  id: string
+  name: string
+  adminEmail: string
 }
 
 export default function JadwalPage() {
   const [date, setDate] = useState<Date | undefined>(new Date())
   const [schedules, setSchedules] = useState<Schedule[]>([])
-  const [newSchedule, setNewSchedule] = useState({ title: "", description: "", time: "", address: "" })
-  
+  const [counselors, setCounselors] = useState<Counselor[]>([])
+  const [newSchedule, setNewSchedule] = useState({ 
+    title: "", 
+    description: "", 
+    time: "", 
+    address: "", 
+    counselor_id: "" 
+  })
+
   // State untuk reschedule
   const [isRescheduleOpen, setIsRescheduleOpen] = useState(false)
   const [rescheduleData, setRescheduleData] = useState<{ id: number, date: Date, time: string } | null>(null)
 
-  // Ambil data jadwal saat komponen di-mount
+  // Ambil data konselor saat komponen di-mount
+  useEffect(() => {
+    const fetchCounselors = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("counselors")
+          .select(`
+            id,
+            admin:admins(name, email)
+          `)
+
+        if (error) {
+          console.error("Gagal mengambil data konselor:", error)
+          return
+        }
+
+        // Transformasi data untuk menyesuaikan format
+        const transformedData = data.map((item: any) => ({
+          id: item.id,
+          name: item.admin.name, // Nama admin sebagai nama konselor
+          adminEmail: item.admin.email, // Email admin
+        }))
+
+        setCounselors(transformedData)
+      } catch (err) {
+        console.error("Error saat mengambil data konselor:", err)
+      }
+    }
+
+    fetchCounselors()
+  }, [])
+
+  // Ambil data jadwal saat komponen di-mount atau saat counselors berubah
   useEffect(() => {
     const fetchSchedules = async () => {
       try {
@@ -48,7 +101,10 @@ export default function JadwalPage() {
 
         const { data, error } = await supabase
           .from("schedules")
-          .select("*")
+          .select(`
+            *,
+            counselor: counselors(id, admin: admins(name, email))
+          `)
           .eq("user_id", userId)
 
         if (error) {
@@ -63,7 +119,12 @@ export default function JadwalPage() {
           time: item.time,
           title: item.title,
           description: item.description,
-          address: item.address, // Pastikan field address ada
+          address: item.address,
+          counselor: {
+            id: item.counselor.id,
+            name: item.counselor.admin.name, // Nama admin sebagai nama konselor
+            adminEmail: item.counselor.admin.email, // Email admin
+          },
         }))
         setSchedules(transformedData)
       } catch (err) {
@@ -72,10 +133,57 @@ export default function JadwalPage() {
     }
 
     fetchSchedules()
-  }, [])
+  }, [counselors])
+
+  // Fungsi untuk mengirim notifikasi email
+  const sendEmailNotification = async (
+    adminEmail: string,
+    scheduleId: number,
+    date: string,
+    time: string,
+    address: string,
+    title: string
+  ) => {
+    try {
+      const response = await fetch("/api/send-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN}`,
+        },
+        body: JSON.stringify({
+          recipients: [adminEmail], // Kirim hanya ke admin
+          subject: `Jadwal Konsultasi Baru: ${title}`,
+          body: `
+Anda memiliki jadwal konsultasi baru.
+
+ID Jadwal: ${scheduleId}
+Tanggal: ${date}
+Waktu: ${time}
+Alamat: ${address}
+Judul: ${title}
+
+Silakan login ke dashboard untuk melihat detail lebih lanjut.
+          `,
+        }),
+      })
+
+      if (response.ok) {
+        console.log("Notifikasi email berhasil dikirim.")
+        return true
+      } else {
+        const data = await response.json()
+        console.error("Gagal mengirim email:", data.message)
+        return false
+      }
+    } catch (err) {
+      console.error("Error saat mengirim email:", err)
+      return false
+    }
+  }
 
   const handleAddSchedule = async () => {
-    if (date && newSchedule.title && newSchedule.time && newSchedule.address) {
+    if (date && newSchedule.title && newSchedule.time && newSchedule.address && newSchedule.counselor_id) {
       try {
         const userSession = sessionStorage.getItem("userSession")
         if (!userSession) throw new Error("Anda belum login!")
@@ -90,7 +198,8 @@ export default function JadwalPage() {
             time: newSchedule.time,
             title: newSchedule.title,
             description: newSchedule.description,
-            address: newSchedule.address, // Menambahkan address
+            address: newSchedule.address,
+            counselor_id: newSchedule.counselor_id, // Menambahkan counselor_id
           })
           .select()
 
@@ -101,6 +210,12 @@ export default function JadwalPage() {
         }
 
         // Update state lokal untuk menampilkan jadwal baru
+        const selectedCounselor = counselors.find(c => c.id === newSchedule.counselor_id)
+        if (!selectedCounselor) {
+          alert("Konselor tidak ditemukan.")
+          return
+        }
+
         setSchedules([
           ...schedules,
           {
@@ -109,12 +224,29 @@ export default function JadwalPage() {
             time: schedule[0].time,
             title: schedule[0].title,
             description: schedule[0].description,
-            address: schedule[0].address, // Menambahkan address
+            address: schedule[0].address,
+            counselor: {
+              id: selectedCounselor.id,
+              name: selectedCounselor.name,
+              adminEmail: selectedCounselor.adminEmail,
+            },
           },
         ])
-        setNewSchedule({ title: "", description: "", time: "", address: "" })
+        setNewSchedule({ title: "", description: "", time: "", address: "", counselor_id: "" })
         alert("Jadwal berhasil ditambahkan!")
-      } catch (err) {
+
+        // Kirim notifikasi email
+        const formattedDate = format(new Date(schedule[0].date), "dd MMMM yyyy")
+        await sendEmailNotification(
+          selectedCounselor.adminEmail, // Kirim ke email admin
+          schedule[0].id,
+          formattedDate,
+          schedule[0].time,
+          schedule[0].address,
+          schedule[0].title
+        )
+
+      } catch (err: any) {
         console.error(err)
         alert("Terjadi kesalahan. Coba lagi.")
       }
@@ -137,15 +269,29 @@ export default function JadwalPage() {
       }
 
       // Perbarui state lokal
-      setSchedules(
-        schedules.map((schedule) =>
-          schedule.id === scheduleId
-            ? { ...schedule, date: newDate, time: newTime }
-            : schedule,
-        ),
+      const updatedSchedules = schedules.map((schedule) =>
+        schedule.id === scheduleId
+          ? { ...schedule, date: newDate, time: newTime }
+          : schedule,
       )
+      setSchedules(updatedSchedules)
       alert("Jadwal berhasil di-reschedule!")
-    } catch (err) {
+
+      // Kirim notifikasi email
+      const scheduleItem = updatedSchedules.find(s => s.id === scheduleId)
+      if (scheduleItem && scheduleItem.counselor) {
+        const formattedDate = format(newDate, "dd MMMM yyyy")
+        await sendEmailNotification(
+          scheduleItem.counselor.adminEmail, // Kirim ke email admin
+          scheduleItem.id,
+          formattedDate,
+          newTime,
+          scheduleItem.address,
+          scheduleItem.title
+        )
+      }
+
+    } catch (err: any) {
       console.error("Error saat mereschedule jadwal:", err)
       alert("Terjadi kesalahan saat mereschedule jadwal.")
     }
@@ -163,7 +309,7 @@ export default function JadwalPage() {
       // Perbarui state lokal
       setSchedules(schedules.filter((schedule) => schedule.id !== scheduleId))
       alert("Jadwal berhasil dihapus!")
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error saat menghapus jadwal:", err)
       alert("Terjadi kesalahan saat menghapus jadwal.")
     }
@@ -221,6 +367,24 @@ export default function JadwalPage() {
                     onChange={(e) => setNewSchedule({ ...newSchedule, address: e.target.value })}
                     className="col-span-3"
                   />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="counselor" className="text-right">
+                    Konselor
+                  </Label>
+                  <select
+                    id="counselor"
+                    value={newSchedule.counselor_id}
+                    onChange={(e) => setNewSchedule({ ...newSchedule, counselor_id: e.target.value })}
+                    className="col-span-3 border rounded-md p-2"
+                  >
+                    <option value="">Pilih Konselor</option>
+                    {counselors.map((counselor) => (
+                      <option key={counselor.id} value={counselor.id}>
+                        {counselor.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="description" className="text-right">
@@ -323,6 +487,11 @@ export default function JadwalPage() {
                     <p className="mt-2 text-sm text-gray-600">
                       <strong>Alamat:</strong> {schedule.address}
                     </p>
+                    {schedule.counselor && (
+                      <p className="mt-2 text-sm text-gray-600">
+                        <strong>Konselor:</strong> {schedule.counselor.name}
+                      </p>
+                    )}
                     <div className="flex gap-2 mt-2">
                       <Button
                         variant="secondary"

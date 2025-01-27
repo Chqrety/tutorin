@@ -6,6 +6,7 @@ import { Home, Calendar, Users, Settings, LogOut, FileText } from "lucide-react"
 
 const menuItems = [
   { icon: Home, label: "Dashboard", href: "/admin/dashboard" },
+  { icon: Calendar, label: "Jadwal", href: "/admin/dashboard/jadwal" },
   { icon: Calendar, label: "Konsultasi", href: "/admin/dashboard/konsultasi" },
   { icon: Users, label: "Pengguna", href: "/admin/dashboard/pengguna" },
   { icon: FileText, label: "Posts", href: "/admin/dashboard/posts" },
