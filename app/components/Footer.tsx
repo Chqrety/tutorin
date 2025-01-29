@@ -7,7 +7,7 @@ const Footer = () => {
       <div className="container mx-auto px-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div>
-            <h3 className="text-2xl font-bold mb-4">KampusKarirKu</h3>
+            <h3 className="text-2xl font-bold mb-4">Doscom Konsultan</h3>
             <p className="mb-4">Temukan dan kembangkan potensi terbaikmu bersama kami.</p>
             <div className="flex space-x-4">
               <Link href="#" className="hover:text-blue-400 transition-colors">
@@ -56,14 +56,14 @@ const Footer = () => {
           </div>
           <div>
             <h4 className="text-xl font-semibold mb-4">Hubungi Kami</h4>
-            <p>Jl. Pendidikan No. 123</p>
-            <p>Jakarta, Indonesia 12345</p>
-            <p>Email: info@kampuskarirku.com</p>
-            <p>Telepon: (021) 123-4567</p>
+            <p>Jl. Imam Bonjol Udinus. 123</p>
+            <p>Semarang, Indonesia 12345</p>
+            <p>Email: Doscomkonsultan@gmail.com</p>
+            <p>Telepon: +62-882-2508-9622</p>
           </div>
         </div>
         <div className="border-t border-gray-700 mt-8 pt-8 text-center">
-          <p>&copy; 2023 KampusKarirKu. All rights reserved.</p>
+          <p>&copy; 2025 Doscom Konsultan. All rights reserved.</p>
         </div>
       </div>
     </footer>
