@@ -253,7 +253,7 @@ export default function RegistrationForm() {
     >
       <div className="p-8">
         <h2 className="text-3xl font-bold text-center text-primary mb-6">
-          Daftar KampusKarirKu
+          Daftar Doscom Konsultan
         </h2>
         <Progress value={((step + 1) / steps.length) * 100} className="mb-6" />
 

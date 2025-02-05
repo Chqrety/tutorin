@@ -8,8 +8,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 
 export default function AdminPengaturanPage() {
   const [settings, setSettings] = useState({
-    siteName: "KampusKarirKu",
-    adminEmail: "admin@kampuskarirku.com",
+    siteName: "Doscomkonsultan",
+    adminEmail: "admin@Doscomkonsultan.com",
     maxConsultationsPerDay: "10",
   })
 

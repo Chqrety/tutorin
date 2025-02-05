@@ -52,13 +52,6 @@ export default function LoginForm() {
   
       const { userId, email, token } = await response.json();
   
-      // **Pastikan token ada**
-      if (!token) {
-        console.error("Token tidak ditemukan dalam respons login!");
-        toast.error("Login gagal: Token tidak ditemukan.");
-        return;
-      }
-  
       // **Simpan user session dengan token**
       sessionStorage.setItem("userSession", JSON.stringify({ userId, email, token }));
   
@@ -82,7 +75,7 @@ export default function LoginForm() {
   return (
     <div className="w-full max-w-md bg-white rounded-lg shadow-xl p-8">
       <h2 className="text-2xl font-bold text-center text-primary mb-6">
-        Masuk ke KampusKarirKu
+        Masuk ke Doscom Konsultan
       </h2>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">

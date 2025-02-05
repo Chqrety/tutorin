@@ -22,7 +22,7 @@ export default function About() {
           >
             <Image
               src="/about-image.jpg"
-              alt="Tentang KampusKarirKu"
+              alt="TentangDoscom Konsultan"
               width={500}
               height={500}
               className="rounded-lg shadow-lg"
@@ -34,9 +34,9 @@ export default function About() {
             transition={{ duration: 0.5, delay: 0.2 }}
             className="md:w-1/2 md:pl-12"
           >
-            <h2 className="text-3xl font-bold mb-4">Tentang KampusKarirKu</h2>
+            <h2 className="text-3xl font-bold mb-4">TentangDoscom Konsultan</h2>
             <p className="text-xl text-gray-600 mb-6">
-              KampusKarirKu adalah platform konsultasi karir yang didedikasikan untuk membantu mahasiswa menemukan dan
+             Doscom Konsultan adalah platform konsultasi karir yang didedikasikan untuk membantu mahasiswa menemukan dan
               mengembangkan potensi terbaik mereka. Kami menghubungkan mahasiswa dengan konselor profesional dan
               menyediakan sumber daya yang diperlukan untuk merencanakan karir yang sukses.
             </p>

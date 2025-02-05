@@ -3,7 +3,17 @@
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Calendar, MessageSquare, Clock, Settings, LogOut, FileText, Menu, X } from "lucide-react"
+import {
+  Home,
+  Calendar,
+  MessageSquare,
+  Clock,
+  Settings,
+  LogOut,
+  FileText,
+  Menu,
+  X,
+} from "lucide-react"
 
 const menuItems = [
   { icon: Home, label: "Beranda", href: "/dashboard" },
@@ -24,21 +34,32 @@ export default function DashboardSidebar() {
 
   return (
     <>
-      {/* Hamburger Menu */}
+      {/* Hamburger Button */}
       <button
-        className="md:hidden p-4 focus:outline-none z-50"
+        className="
+          md:hidden 
+          p-2 
+          bg-transparent 
+          focus:outline-none 
+          z-50
+          relative
+        "
         onClick={toggleSidebar}
         aria-label="Toggle Sidebar"
       >
-        {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+        {isOpen ? (
+          <X className="h-4 w-4" />
+        ) : (
+          <Menu className="h-4 w-4" />
+        )}
       </button>
 
-      {/* Overlay */}
+      {/* Overlay (gelap) ketika sidebar terbuka */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black opacity-50 z-40 md:hidden"
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
           onClick={toggleSidebar}
-        ></div>
+        />
       )}
 
       {/* Sidebar */}
@@ -48,14 +69,16 @@ export default function DashboardSidebar() {
         } transition-transform duration-300 ease-in-out z-50 md:translate-x-0 md:static md:shadow-none`}
       >
         <div className="flex items-center justify-between h-16 px-4 border-b">
-          <span className="text-2xl font-bold text-blue-600">Doscom Konsultan</span>
+          <span className="text-2xl font-bold text-blue-600">
+            Doscom Konsultan
+          </span>
           {/* Close button on mobile */}
           <button
-            className="md:hidden focus:outline-none"
+            className="md:hidden focus:outline-none p-2 bg-transparent"
             onClick={toggleSidebar}
             aria-label="Close Sidebar"
           >
-            <X className="h-6 w-6" />
+            <X className="h-4 w-4" />
           </button>
         </div>
         <nav className="mt-6">
@@ -63,9 +86,11 @@ export default function DashboardSidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center px-6 py-3 text-gray-600 hover:bg-gray-100 hover:text-blue-600 ${
-                pathname === item.href ? "bg-gray-100 text-blue-600" : ""
-              }`}
+              className={`
+                flex items-center px-6 py-3 text-gray-600 
+                hover:bg-gray-100 hover:text-blue-600 
+                ${pathname === item.href ? "bg-gray-100 text-blue-600" : ""}
+              `}
               onClick={() => setIsOpen(false)} // Tutup sidebar saat link diklik di mobile
             >
               <item.icon className="h-5 w-5 mr-3" />
@@ -77,7 +102,7 @@ export default function DashboardSidebar() {
           <Link
             href="/logout"
             className="flex items-center px-6 py-3 text-gray-600 hover:bg-gray-100 hover:text-blue-600"
-            onClick={() => setIsOpen(false)} // Tutup sidebar saat link diklik di mobile
+            onClick={() => setIsOpen(false)} // Tutup sidebar saat link diklik
           >
             <LogOut className="h-5 w-5 mr-3" />
             Keluar

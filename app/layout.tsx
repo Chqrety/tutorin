@@ -4,7 +4,7 @@ import { ToastProvider, ToastViewport } from "@/components/ui/toast"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata = {
-  title: "KampusKarirKu - Konsultasi Minat Bakat Mahasiswa",
+  title: "DoscomKonsultan - Konsultasi Minat Bakat Mahasiswa",
   description: "Temukan potensi terbaikmu dan raih karir impianmu",
 }
 

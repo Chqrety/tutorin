@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Image from "next/image";
 
-// Komponen untuk Animasi "Sedang Mengetik"
 const TypingIndicator = () => {
   return (
     <div className="flex items-center gap-1">
@@ -41,7 +40,7 @@ type Consultation = {
   topic: string;
   messages: Message[];
   status: "active" | "closed";
-  hasNewMessage: boolean; // Tambahan indikator pesan baru
+  hasNewMessage: boolean;
 };
 
 export default function UserKonsultasiPage() {
@@ -51,7 +50,24 @@ export default function UserKonsultasiPage() {
   const [newTopic, setNewTopic] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [isMobileView, setIsMobileView] = useState(false);
   const router = useRouter();
+
+  // Ref untuk menyimpan activeConsultation agar selalu sinkron dalam subscription realtime
+  const activeConsultationRef = useRef(activeConsultation);
+  useEffect(() => {
+    activeConsultationRef.current = activeConsultation;
+  }, [activeConsultation]);
+
+  // Check for mobile view (based on window size)
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobileView(window.innerWidth < 768); // breakpoint sesuai kebutuhan
+    };
+    window.addEventListener("resize", handleResize);
+    handleResize(); // cek pada mount
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   // Fetch user ID from session
   useEffect(() => {
@@ -86,7 +102,7 @@ export default function UserKonsultasiPage() {
         if (error) throw error;
 
         const consultationsWithMessages = await Promise.all(
-          data.map(async (consultation) => {
+          data.map(async (consultation: any) => {
             const { data: messages, error: messagesError } = await supabase
               .from("messages")
               .select("*, users(full_name), profiles(avatar_url)")
@@ -97,13 +113,13 @@ export default function UserKonsultasiPage() {
 
             return {
               ...consultation,
-              messages: messages.map((msg) => ({
+              messages: messages.map((msg: any) => ({
                 ...msg,
                 full_name: msg.users?.full_name || "Admin",
                 avatar_url: msg.profiles?.avatar_url || "/default-avatar.png",
                 timestamp: new Date(msg.timestamp),
               })),
-              hasNewMessage: false, // Default tidak ada pesan baru
+              hasNewMessage: false,
             };
           })
         );
@@ -117,89 +133,104 @@ export default function UserKonsultasiPage() {
     fetchConsultations();
   }, [userId]);
 
-  // Realtime updates for new messages and consultation status
-  const [avatarCache, setAvatarCache] = useState<{ [key: string]: string }>({});
-
+  // Subscription Realtime untuk pesan baru
   useEffect(() => {
-    const subscription = supabase
-      .channel("consultation-updates")
+    if (!userId) return;
+
+    const messageChannel = supabase
+      .channel("messages-channel")
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
-        async (payload) => {
-          const newMsg = payload.new;
-  
-          // Cek cache avatar
-          if (!avatarCache[newMsg.user_id]) {
-            const { data: profile, error } = await supabase
-              .from("profiles")
-              .select("avatar_url")
-              .eq("id", newMsg.user_id)
-              .single();
-  
-           
-  
-            setAvatarCache((prev) => ({
-              ...prev,
-              [newMsg.user_id]: profile?.avatar_url || "/default-avatar.png",
-            }));
-          }
-  
-          const avatar_url = avatarCache[newMsg.user_id] || "/default-avatar.png";
-  
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+        },
+        (payload) => {
+          const newMsgData = payload.new;
+          // Format pesan baru; jika data tambahan (join) belum tersedia, gunakan nilai default
+          const formattedMessage: Message = {
+            id: newMsgData.id,
+            sender: newMsgData.sender,
+            content: newMsgData.content,
+            timestamp: new Date(newMsgData.timestamp),
+            full_name: newMsgData.users?.full_name || (newMsgData.sender === "user" ? "Anda" : "Admin"),
+            avatar_url: newMsgData.profiles?.avatar_url || "/default-avatar.png",
+          };
+
+          // Update state consultations
+          setConsultations((prev) =>
+            prev.map((consultation) => {
+              if (consultation.id === newMsgData.consultation_id) {
+                // Tandai ada pesan baru jika konsultasi ini bukan yang aktif saat ini
+                const isActive =
+                  activeConsultationRef.current && activeConsultationRef.current.id === consultation.id;
+                return {
+                  ...consultation,
+                  messages: [...consultation.messages, formattedMessage],
+                  hasNewMessage: isActive ? false : true,
+                };
+              }
+              return consultation;
+            })
+          );
+
+          // Jika konsultasi yang aktif sama, tambahkan pesan ke state activeConsultation
+          setActiveConsultation((prev) => {
+            if (prev && prev.id === newMsgData.consultation_id) {
+              return { ...prev, messages: [...prev.messages, formattedMessage] };
+            }
+            return prev;
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(messageChannel);
+    };
+  }, [userId]);
+
+  // Subscription Realtime untuk update status konsultasi
+  useEffect(() => {
+    if (!userId) return;
+
+    const consultationChannel = supabase
+      .channel("consultations-channel")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "consultations",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          const updatedConsultation = payload.new;
+          // Update daftar konsultasi
           setConsultations((prev) =>
             prev.map((consultation) =>
-              consultation.id === newMsg.consultation_id
-                ? {
-                    ...consultation,
-                    hasNewMessage: true, // Tandai ada pesan baru
-                    messages: [
-                      ...consultation.messages,
-                      {
-                        id: newMsg.id,
-                        sender: newMsg.sender,
-                        content: newMsg.content,
-                        timestamp: new Date(newMsg.timestamp),
-                        full_name: newMsg.full_name || "Admin",
-                        avatar_url: avatar_url || "/default-avatar.png", // Gunakan fallback jika avatar_url kosong
-                      },
-                    ],
-                  }
+              consultation.id === updatedConsultation.id
+                ? { ...consultation, status: updatedConsultation.status }
                 : consultation
             )
           );
-          
-          if (activeConsultation?.id === newMsg.consultation_id) {
-            setActiveConsultation((prev) =>
-              prev
-                ? {
-                    ...prev,
-                    messages: [
-                      ...prev.messages,
-                      {
-                        id: newMsg.id,
-                        sender: newMsg.sender,
-                        content: newMsg.content,
-                        timestamp: new Date(newMsg.timestamp),
-                        full_name: newMsg.full_name || "Admin",
-                        avatar_url: avatar_url || "/default-avatar.png", // Gunakan fallback jika avatar_url kosong
-                      },
-                    ],
-                  }
-                : null
-            );
-            
-          }
-        } 
-        )
-          
+          // Update activeConsultation jika relevan
+          setActiveConsultation((prev) => {
+            if (prev && prev.id === updatedConsultation.id) {
+              return { ...prev, status: updatedConsultation.status };
+            }
+            return prev;
+          });
+        }
+      )
       .subscribe();
+
     return () => {
-      subscription.unsubscribe();
+      supabase.removeChannel(consultationChannel);
     };
-  }, [activeConsultation, avatarCache]);
-  
-  
+  }, [userId]);
+
   const startNewConsultation = async () => {
     if (!newTopic.trim()) {
       alert("Topik konsultasi tidak boleh kosong.");
@@ -252,6 +283,7 @@ export default function UserKonsultasiPage() {
 
         if (error) throw error;
 
+        // Setelah pesan dikirim, reset input pesan dan status mengetik
         setNewMessage("");
         setIsTyping(false);
       } catch (err) {
@@ -270,7 +302,7 @@ export default function UserKonsultasiPage() {
         </TabsList>
         <TabsContent value="chat">
           <div className="flex flex-col md:flex-row gap-6">
-            <div className="md:w-1/3">
+            <div className={`md:w-1/3 ${isMobileView && activeConsultation ? "hidden" : ""}`}>
               <Input
                 placeholder="Topik konsultasi baru"
                 value={newTopic}
@@ -288,14 +320,13 @@ export default function UserKonsultasiPage() {
                       key={consultation.id}
                       className="mb-4 p-4 border rounded-lg cursor-pointer relative"
                       onClick={() => {
-                        setActiveConsultation(consultation);
+                        // Reset notifikasi pesan baru ketika konsultasi dibuka
                         setConsultations((prev) =>
                           prev.map((c) =>
-                            c.id === consultation.id
-                              ? { ...c, hasNewMessage: false }
-                              : c
+                            c.id === consultation.id ? { ...c, hasNewMessage: false } : c
                           )
                         );
+                        setActiveConsultation(consultation);
                       }}
                     >
                       {consultation.hasNewMessage && (
@@ -307,9 +338,12 @@ export default function UserKonsultasiPage() {
                   ))}
               </ScrollArea>
             </div>
-            <div className="md:w-2/3">
+            <div className={`md:w-2/3 ${isMobileView && activeConsultation ? "block" : ""}`}>
               {activeConsultation ? (
                 <>
+                  <Button onClick={() => setActiveConsultation(null)} className="mb-4">
+                    Kembali
+                  </Button>
                   <ScrollArea className="h-[400px] rounded-md border p-4">
                     {activeConsultation.messages.map((message, index) => (
                       <div
@@ -319,61 +353,33 @@ export default function UserKonsultasiPage() {
                         }`}
                         style={{ maxWidth: "70%" }}
                       >
-                       <div className="flex items-center gap-2">
-  {message.avatar_url ? (
-    <Image
-    src={message.avatar_url || "/default-avatar.png"}
-      alt={message.full_name || "User"}
-      width={30}
-      height={30}
-      className="rounded-full"
-      onError={(e) => (e.currentTarget.src = "/default-avatar.png")} // Placeholder default jika error
-    />
-  ) : (
-    <div className="h-8 w-8 bg-gray-200 rounded-full flex items-center justify-center">
-      <span className="text-xs text-gray-500">N/A</span>
-    </div>
-  )}
-  <span className="text-sm font-bold">
-    {message.sender === "user" ? "Anda" : message.full_name || "Admin"}
-  </span>
-</div>
-
+                        <div className="flex items-center gap-2">
+                          <Image
+                            src={message.avatar_url || "/default-avatar.png"}
+                            alt={message.full_name || "User"}
+                            width={30}
+                            height={30}
+                            className="rounded-full"
+                          />
+                          <span className="text-sm font-bold">
+                            {message.sender === "user" ? "Anda" : message.full_name || "Admin"}
+                          </span>
+                        </div>
                         <p className="text-sm">{message.content}</p>
                         <p className="text-xs text-gray-500">
                           {message.timestamp.toLocaleTimeString()}
                         </p>
                       </div>
                     ))}
-                    {isTyping && (
-                      <div className="flex items-center gap-2 mt-2">
-                        <div className="bg-gray-100 p-2 rounded-lg max-w-[70%]">
-                          <div className="flex items-center gap-2">
-                            <div className="h-8 w-8 bg-gray-300 rounded-full animate-pulse"></div>
-                            <span className="text-sm font-medium text-gray-600">Sedang mengetik...</span>
-                          </div>
-                          <TypingIndicator />
-                        </div>
-                      </div>
-                    )}
                   </ScrollArea>
                   <div className="flex gap-2 mt-4">
-                    {activeConsultation.status === "active" ? (
-                      <>
-                        <Input
-                          placeholder="Ketik pesan Anda..."
-                          value={newMessage}
-                          onChange={(e) => {
-                            setNewMessage(e.target.value);
-                            setIsTyping(true);
-                          }}
-                          onBlur={() => setIsTyping(false)}
-                        />
-                        <Button onClick={sendMessage}>Kirim</Button>
-                      </>
-                    ) : (
-                      <p className="text-gray-500">Konsultasi telah selesai.</p>
-                    )}
+                    <Input
+                      placeholder="Ketik pesan Anda..."
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      className="w-full"
+                    />
+                    <Button onClick={sendMessage}>Kirim</Button>
                   </div>
                 </>
               ) : (
@@ -395,9 +401,7 @@ export default function UserKonsultasiPage() {
                     Status:{" "}
                     <span
                       className={`${
-                        consultation.status === "active"
-                          ? "text-green-600"
-                          : "text-red-600"
+                        consultation.status === "active" ? "text-green-600" : "text-red-600"
                       }`}
                     >
                       {consultation.status === "active" ? "Aktif" : "Selesai"}

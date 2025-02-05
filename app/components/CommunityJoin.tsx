@@ -33,7 +33,7 @@ export default function CommunityJoin() {
         >
           <Card className="max-w-2xl mx-auto">
             <CardHeader>
-              <CardTitle className="text-2xl">Grup Telegram KampusKarirKu</CardTitle>
+              <CardTitle className="text-2xl">Grup Telegram Doscom Media</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-gray-600 mb-6">

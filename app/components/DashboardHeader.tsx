@@ -1,6 +1,8 @@
 "use client"
 
+import Link from "next/link"
 import { Bell, User } from "lucide-react"
+
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -30,8 +32,18 @@ export default function DashboardHeader() {
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>Akun Saya</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>Profil</DropdownMenuItem>
-                <DropdownMenuItem>Pengaturan</DropdownMenuItem>
+
+                {/* Menu Profil */}
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard/profile">Profil</Link>
+                </DropdownMenuItem>
+
+                {/* Menu Pengaturan */}
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard/pengaturan">Pengaturan</Link>
+                </DropdownMenuItem>
+
+                {/* Menu Keluar */}
                 <DropdownMenuItem>Keluar</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -41,4 +53,3 @@ export default function DashboardHeader() {
     </header>
   )
 }
-
