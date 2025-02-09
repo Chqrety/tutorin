@@ -1,33 +1,37 @@
-// components/LogoutButton.tsx
 "use client"
 
-import React from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
-import { useToast } from "@/components/ui/use-toast"
+import { LogOut } from "lucide-react"
 
 export default function LogoutButton() {
   const router = useRouter()
-  const { toast } = useToast()
 
   const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut()
-    if (error) {
-      console.error("Logout Error:", error)
-      toast({
-        variant: "destructive",
-        title: "Gagal Logout",
-        description: error.message,
-      })
-    } else {
-      toast({
-        title: "Berhasil Logout",
-        description: "Anda telah berhasil keluar.",
-      })
+    try {
+      // Hapus sesi dari Supabase
+      const { error } = await supabase.auth.signOut()
+      if (error) {
+        console.error("Error saat logout:", error.message)
+      }
+
+      // Hapus sesi dari sessionStorage
+      sessionStorage.removeItem("userSession")
+
+      // Redirect ke halaman login
       router.push("/login")
+    } catch (err) {
+      console.error("Error saat logout:", err)
     }
   }
 
-  return <Button onClick={handleLogout}>Logout</Button>
+  return (
+    <Button onClick={handleLogout}>
+      <LogOut className="mr-2" />
+      Logout
+    </Button>
+  )
 }
+
+
