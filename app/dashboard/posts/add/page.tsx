@@ -3,18 +3,15 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
+import { Spinner } from "@heroui/spinner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import LoadingPage from "@/app/components/LoadingPage"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Tag } from "lucide-react"
+import { toast } from "react-toastify"
 
 export default function AddPost() {
   const router = useRouter()
@@ -25,6 +22,7 @@ export default function AddPost() {
   const [tags, setTags] = useState("")
   const [codeSnippet, setCodeSnippet] = useState("") // <--- Tambahan untuk code
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
+  const [isLoading, setIsLoading] = useState(false)
 
   // userId dari session
   const [userId, setUserId] = useState<string | null>(null)
@@ -65,15 +63,17 @@ export default function AddPost() {
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    setIsLoading(true)
 
+    e.preventDefault()
     if (!userId) {
       // Jika user belum terdeteksi, jangan lanjut
       return
     }
-
-    if (!validateForm()) return
-
+    if (!validateForm()) {
+      setIsLoading(false)
+      return
+    }
     try {
       // Insert ke tabel 'questions' di Supabase
       // catatan: 'content' = details, 'tags' = tags, 'code' = codeSnippet
@@ -96,18 +96,20 @@ export default function AddPost() {
 
       // Dapatkan id question yang baru dibuat
       const newQuestionId = data?.id
-      console.log("Inserted question with id:", newQuestionId)
-
+      // console.log("Inserted question with id:", newQuestionId)
+      // toast berhasil
+      toast.success("Pertanyaan berhasil diposting!", { position: "top-right" })
       // Redirect ke halaman detail question
       router.push(`/dashboard/posts/${newQuestionId}`)
     } catch (err) {
       console.error("Unexpected error submitting question:", err)
     }
+    setIsLoading(false)
   }
 
   // Jika userId null, mungkin masih loading / redirect. Boleh tampil loading.
   if (!userId) {
-    return <div className="p-4">Loading...</div>
+    return <LoadingPage />
   }
 
   return (
@@ -128,9 +130,7 @@ export default function AddPost() {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                 />
-                {errors.title && (
-                  <p className="text-red-500 text-sm mt-1">{errors.title}</p>
-                )}
+                {errors.title && <p className="text-red-500 text-sm mt-1">{errors.title}</p>}
               </div>
 
               {/* Details */}
@@ -143,9 +143,7 @@ export default function AddPost() {
                   value={details}
                   onChange={(e) => setDetails(e.target.value)}
                 />
-                {errors.details && (
-                  <p className="text-red-500 text-sm mt-1">{errors.details}</p>
-                )}
+                {errors.details && <p className="text-red-500 text-sm mt-1">{errors.details}</p>}
               </div>
 
               {/* Code Snippet */}
@@ -172,9 +170,7 @@ export default function AddPost() {
                     onChange={(e) => setTags(e.target.value)}
                   />
                 </div>
-                {errors.tags && (
-                  <p className="text-red-500 text-sm mt-1">{errors.tags}</p>
-                )}
+                {errors.tags && <p className="text-red-500 text-sm mt-1">{errors.tags}</p>}
               </div>
             </div>
           </form>
@@ -184,7 +180,10 @@ export default function AddPost() {
             Cancel
           </Button>
           {/* Submit button */}
-          <Button onClick={handleSubmit}>Post Your Question</Button>
+          <Button onClick={handleSubmit} disabled={isLoading}>
+            {isLoading ? <Spinner color="secondary" size="sm" /> : ""}
+            Post Your Question
+          </Button>
         </CardFooter>
       </Card>
 
@@ -195,12 +194,8 @@ export default function AddPost() {
             <CardTitle>Preview</CardTitle>
           </CardHeader>
           <CardContent>
-            <h2 className="text-xl font-bold mb-4">
-              {title || "Your question title"}
-            </h2>
-            <p className="whitespace-pre-wrap mb-4">
-              {details || "Your question details"}
-            </p>
+            <h2 className="text-xl font-bold mb-4">{title || "Your question title"}</h2>
+            <p className="whitespace-pre-wrap mb-4">{details || "Your question details"}</p>
 
             {/* Preview code snippet */}
             {codeSnippet && (

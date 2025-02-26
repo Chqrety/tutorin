@@ -8,6 +8,8 @@ import { supabase } from "@/lib/supabase"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import Modal from "@/components/ui/modal"
+import { toast } from "react-toastify"
 
 type UserProfile = {
   full_name: string
@@ -61,7 +63,8 @@ export default function DashboardPostsPage() {
         // Hanya ambil questions milik userId ini
         const { data, error } = await supabase
           .from("questions")
-          .select(`
+          .select(
+            `
             id,
             title,
             votes,
@@ -72,7 +75,8 @@ export default function DashboardPostsPage() {
                 avatar_url
               )
             )
-          `)
+          `,
+          )
           .eq("user_id", userId) // Filter: hanya question milik userId
           .order("created_at", { ascending: false })
 
@@ -92,9 +96,6 @@ export default function DashboardPostsPage() {
 
   // Fungsi hapus postingan
   const handleDelete = async (questionId: string) => {
-    const confirmDelete = window.confirm("Are you sure you want to delete this question?")
-    if (!confirmDelete) return
-
     try {
       // Hapus question dari DB (pastikan userId cocok)
       const { error } = await supabase
@@ -106,6 +107,9 @@ export default function DashboardPostsPage() {
 
       // Hapus juga dari state
       setQuestions((prev) => prev.filter((q) => q.id !== questionId))
+
+      // toast
+      toast.success("Question has been deleted")
     } catch (err) {
       console.error("Error deleting question:", err)
       alert("Failed to delete question.")
@@ -148,19 +152,14 @@ export default function DashboardPostsPage() {
               <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                 <CardTitle className="text-lg font-bold">
                   {/* Link ke detail question */}
-                  <Link
-                    href={`/dashboard/posts/${q.id}`}
-                    className="hover:underline"
-                  >
+                  <Link href={`/dashboard/posts/${q.id}`} className="hover:underline">
                     {q.title}
                   </Link>
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex items-center justify-between text-sm text-gray-500">
                 <div className="flex items-center">
-                  <span className="mr-2 font-medium text-gray-600">
-                    Votes: {q.votes}
-                  </span>
+                  <span className="mr-2 font-medium text-gray-600">Votes: {q.votes}</span>
                   <span className="text-xs text-gray-400">
                     {new Date(q.created_at).toLocaleDateString()}
                   </span>
@@ -173,16 +172,17 @@ export default function DashboardPostsPage() {
                     />
                     <AvatarFallback>?</AvatarFallback>
                   </Avatar>
-                  <p className="font-medium">
-                    {q.user?.full_name || "Unknown User"}
-                  </p>
+                  <p className="font-medium">{q.user?.full_name || "Unknown User"}</p>
                 </div>
               </CardContent>
               {/* Tombol Hapus Question */}
               <div className="flex justify-end px-4 pb-4">
-                <Button variant="destructive" size="sm" onClick={() => handleDelete(q.id)}>
-                  Delete
-                </Button>
+                <Modal
+                  children={"Delete"}
+                  color={"danger"}
+                  title={q.title}
+                  onClick={() => handleDelete(q.id)}
+                />
               </div>
             </Card>
           ))}

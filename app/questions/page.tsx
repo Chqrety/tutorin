@@ -1,59 +1,50 @@
 // app/questions/page.tsx
-import Link from "next/link";
-import { createClient } from "@supabase/supabase-js"; // gunakan Supabase client berbasis anon key
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/ui/avatar";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { MessageSquare, Search, FileText } from "lucide-react";
-import ProtectedLink from "../components/ProtectedLink";
-import SidebarProfile from "../components/SidebarProfile";
-import VoteShareButtons from "../components/VoteShareButtons";
-import AskQuestionButton from "../components/AskQuestionButton";
+import Link from "next/link"
+import { createClient } from "@supabase/supabase-js" // gunakan Supabase client berbasis anon key
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { MessageSquare, Search, FileText } from "lucide-react"
+import ProtectedLink from "../components/ProtectedLink"
+import SidebarProfile from "../components/SidebarProfile"
+import VoteShareButtons from "../components/VoteShareButtons"
+import AskQuestionButton from "../components/AskQuestionButton"
+import BackButton from "../components/BackButton"
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic"
 
 // Definisi tipe data (sesuaikan jika perlu)
 type UserProfile = {
-  full_name: string;
+  full_name: string
   profiles: {
-    avatar_url: string | null;
-  } | null;
-};
+    avatar_url: string | null
+  } | null
+}
 
 type Question = {
-  id: string;
-  title: string;
-  content: string;
-  code: string | null;
-  tags: string | null;
-  votes: number;
-  created_at: string;
-  user: UserProfile;
-  answers: { id: string }[] | null;
-  question_comments: { id: string }[] | null;
-};
+  id: string
+  title: string
+  content: string
+  code: string | null
+  tags: string | null
+  votes: number
+  created_at: string
+  user: UserProfile
+  answers: { id: string }[] | null
+  question_comments: { id: string }[] | null
+}
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+)
 
 export default async function QuestionsPage() {
   // --- Ambil data Questions beserta relasinya ---
   const { data: questions, error } = await supabase
     .from("questions")
-    .select(`
+    .select(
+      `
       id,
       title,
       content,
@@ -67,31 +58,32 @@ export default async function QuestionsPage() {
       ),
       answers: answers!question_id ( id ),
       question_comments: question_comments!question_id ( id )
-    `)
-    .order("created_at", { ascending: false });
+    `,
+    )
+    .order("created_at", { ascending: false })
 
   if (error) {
-    console.error("Error fetching questions:", error);
-    return <div>Error loading questions. Please try again later.</div>;
+    console.error("Error fetching questions:", error)
+    return <div>Error loading questions. Please try again later.</div>
   }
 
   // --- Ambil data Sidebar ---
   // 1. Ambil semua tag unik dari tabel questions
   const { data: allQuestions, error: questionsError } = await supabase
     .from("questions")
-    .select("tags");
-  let distinctTags: string[] = [];
+    .select("tags")
+  let distinctTags: string[] = []
   if (!questionsError && allQuestions) {
-    const tagsSet = new Set<string>();
+    const tagsSet = new Set<string>()
     allQuestions.forEach((q: any) => {
       if (q.tags) {
         q.tags.split(/\s+/).forEach((tag: string) => {
-          const trimmed = tag.trim();
-          if (trimmed) tagsSet.add(trimmed);
-        });
+          const trimmed = tag.trim()
+          if (trimmed) tagsSet.add(trimmed)
+        })
       }
-    });
-    distinctTags = Array.from(tagsSet);
+    })
+    distinctTags = Array.from(tagsSet)
   }
 
   // 2. Ambil Popular Posts (3 postingan dengan votes tertinggi)
@@ -99,16 +91,16 @@ export default async function QuestionsPage() {
     .from("questions")
     .select("id, title")
     .order("votes", { ascending: false })
-    .limit(3);
-  const popular = popularPosts || [];
+    .limit(3)
+  const popular = popularPosts || []
 
   // 3. Ambil Last Posts (3 postingan terbaru)
   const { data: lastPosts } = await supabase
     .from("questions")
     .select("id, title")
     .order("created_at", { ascending: false })
-    .limit(3);
-  const last = lastPosts || [];
+    .limit(3)
+  const last = lastPosts || []
 
   return (
     <div className="bg-gray-100 min-h-screen">
@@ -117,6 +109,9 @@ export default async function QuestionsPage() {
           {/* Sidebar Desktop */}
           <aside className="hidden md:block md:fixed md:left-0 md:top-0 md:h-screen md:overflow-y-auto w-80 p-4 border border-gray-200 rounded-lg bg-white">
             <div className="h-full">
+              {/* back button */}
+              <BackButton />
+
               {/* Profile Section */}
               <SidebarProfile />
 
@@ -145,7 +140,10 @@ export default async function QuestionsPage() {
                 <ul className="space-y-2">
                   {distinctTags.map((tag, index) => (
                     <li key={index}>
-                      <Link href={`/tags/${tag.toLowerCase()}`} className="text-blue-600 hover:underline">
+                      <Link
+                        href={`/tags/${tag.toLowerCase()}`}
+                        className="text-blue-600 hover:underline"
+                      >
                         {tag}
                       </Link>
                     </li>
@@ -198,7 +196,10 @@ export default async function QuestionsPage() {
                 <ul className="space-y-2">
                   {distinctTags.map((tag, index) => (
                     <li key={index}>
-                      <Link href={`/tags/${tag.toLowerCase()}`} className="text-blue-600 hover:underline">
+                      <Link
+                        href={`/tags/${tag.toLowerCase()}`}
+                        className="text-blue-600 hover:underline"
+                      >
                         {tag}
                       </Link>
                     </li>
@@ -242,8 +243,8 @@ export default async function QuestionsPage() {
             {questions && questions.length > 0 ? (
               <div className="space-y-4">
                 {questions.map((question) => {
-                  const answersCount = question.answers?.length || 0;
-                  const commentsCount = question.question_comments?.length || 0;
+                  const answersCount = question.answers?.length || 0
+                  const commentsCount = question.question_comments?.length || 0
 
                   return (
                     <Card
@@ -273,9 +274,7 @@ export default async function QuestionsPage() {
                       </CardHeader>
                       <CardContent>
                         <ProtectedLink href={`/questions/${question.id}`}>
-                          <CardTitle className="text-xl mb-2">
-                            {question.title}
-                          </CardTitle>
+                          <CardTitle className="text-xl mb-2">{question.title}</CardTitle>
                         </ProtectedLink>
                         <p className="text-gray-700 mb-4">{question.content}</p>
                         {question.code && (
@@ -317,7 +316,7 @@ export default async function QuestionsPage() {
                         </div>
                       </CardFooter>
                     </Card>
-                  );
+                  )
                 })}
               </div>
             ) : (
@@ -327,5 +326,5 @@ export default async function QuestionsPage() {
         </div>
       </div>
     </div>
-  );
+  )
 }

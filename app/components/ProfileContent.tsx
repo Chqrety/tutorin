@@ -37,9 +37,11 @@ const profileSchema = z
 
     currentPassword: z.string().min(1, "Password saat ini harus diisi"),
     newPassword: z.string().min(8, "Password baru minimal 8 karakter"),
-    confirmPassword: z.string().min(8, "Konfirmasi password minimal 8 karakter"),
+    confirmPassword: z
+      .string()
+      .min(8, "Konfirmasi password minimal 8 karakter"),
 
-    // Field untuk file avatar (opsional). 
+    // Field untuk file avatar (opsional).
     avatarFile: z.any().optional(),
   })
   .refine((data) => data.newPassword === data.confirmPassword, {
@@ -114,7 +116,9 @@ export default function ProfileContent() {
         // 1. Ambil data user
         const { data: userData, error: userError } = await supabase
           .from("users")
-          .select("id, email, encrypted_password, full_name, university, major, semester")
+          .select(
+            "id, email, encrypted_password, full_name, university, major, semester",
+          )
           .eq("id", userId)
           .single()
 
@@ -173,7 +177,9 @@ export default function ProfileContent() {
       }
 
       // Dapatkan public URL
-      const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath)
+      const { data: urlData } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(filePath)
       const publicUrl = urlData?.publicUrl
 
       return publicUrl
@@ -207,7 +213,7 @@ export default function ProfileContent() {
       // 2. Bandingkan currentPassword (plaintext) dengan encrypted_password (hash)
       const match = await bcrypt.compare(
         formData.currentPassword,
-        userPassData.encrypted_password
+        userPassData.encrypted_password,
       )
       if (!match) {
         toast({ title: "Error", description: "Password saat ini tidak cocok" })
@@ -233,7 +239,10 @@ export default function ProfileContent() {
 
       if (updateError) {
         console.error("Error updating user:", updateError)
-        toast({ title: "Error", description: "Gagal memperbarui data pengguna" })
+        toast({
+          title: "Error",
+          description: "Gagal memperbarui data pengguna",
+        })
         return
       }
 
@@ -269,7 +278,10 @@ export default function ProfileContent() {
       setIsEditing(false)
     } catch (err) {
       console.error("Unexpected error:", err)
-      toast({ title: "Error", description: "Terjadi kesalahan saat memperbarui profil" })
+      toast({
+        title: "Error",
+        description: "Terjadi kesalahan saat memperbarui profil",
+      })
     }
   }
 
@@ -291,7 +303,9 @@ export default function ProfileContent() {
           </Avatar>
           <div>
             <CardTitle>Profil Anda</CardTitle>
-            <CardDescription>Kelola data profil, email, dan password</CardDescription>
+            <CardDescription>
+              Kelola data profil, email, dan password
+            </CardDescription>
           </div>
         </div>
       </CardHeader>
@@ -308,37 +322,68 @@ export default function ProfileContent() {
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-4">
               <div>
                 <Label htmlFor="fullName">Nama Lengkap</Label>
-                <Input id="fullName" {...register("fullName")} disabled={!isEditing} />
+                <Input
+                  id="fullName"
+                  {...register("fullName")}
+                  disabled={!isEditing}
+                />
                 {errors.fullName && (
-                  <p className="text-red-500 text-sm mt-1">{errors.fullName.message}</p>
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors.fullName.message}
+                  </p>
                 )}
               </div>
               <div>
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" {...register("email")} disabled={!isEditing} />
+                <Input
+                  id="email"
+                  type="email"
+                  {...register("email")}
+                  disabled={!isEditing}
+                />
                 {errors.email && (
-                  <p className="text-red-500 text-sm mt-1">{errors.email.message}</p>
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors.email.message}
+                  </p>
                 )}
               </div>
               <div>
                 <Label htmlFor="university">Universitas</Label>
-                <Input id="university" {...register("university")} disabled={!isEditing} />
+                <Input
+                  id="university"
+                  {...register("university")}
+                  disabled={!isEditing}
+                />
                 {errors.university && (
-                  <p className="text-red-500 text-sm mt-1">{errors.university.message}</p>
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors.university.message}
+                  </p>
                 )}
               </div>
               <div>
                 <Label htmlFor="major">Jurusan</Label>
-                <Input id="major" {...register("major")} disabled={!isEditing} />
+                <Input
+                  id="major"
+                  {...register("major")}
+                  disabled={!isEditing}
+                />
                 {errors.major && (
-                  <p className="text-red-500 text-sm mt-1">{errors.major.message}</p>
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors.major.message}
+                  </p>
                 )}
               </div>
               <div>
                 <Label htmlFor="semester">Semester</Label>
-                <Input id="semester" {...register("semester")} disabled={!isEditing} />
+                <Input
+                  id="semester"
+                  {...register("semester")}
+                  disabled={!isEditing}
+                />
                 {errors.semester && (
-                  <p className="text-red-500 text-sm mt-1">{errors.semester.message}</p>
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors.semester.message}
+                  </p>
                 )}
               </div>
               <div>
@@ -350,7 +395,9 @@ export default function ProfileContent() {
                   disabled={!isEditing}
                 />
                 {errors.avatarFile && (
-                  <p className="text-red-500 text-sm mt-1">{String(errors.avatarFile.message)}</p>
+                  <p className="text-red-500 text-sm mt-1">
+                    {String(errors.avatarFile.message)}
+                  </p>
                 )}
               </div>
 
@@ -385,7 +432,9 @@ export default function ProfileContent() {
                   disabled={!isEditing}
                 />
                 {errors.currentPassword && (
-                  <p className="text-red-500 text-sm mt-1">{errors.currentPassword.message}</p>
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors.currentPassword.message}
+                  </p>
                 )}
               </div>
               <div>
@@ -397,11 +446,15 @@ export default function ProfileContent() {
                   disabled={!isEditing}
                 />
                 {errors.newPassword && (
-                  <p className="text-red-500 text-sm mt-1">{errors.newPassword.message}</p>
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors.newPassword.message}
+                  </p>
                 )}
               </div>
               <div>
-                <Label htmlFor="confirmPassword">Konfirmasi Password Baru</Label>
+                <Label htmlFor="confirmPassword">
+                  Konfirmasi Password Baru
+                </Label>
                 <Input
                   id="confirmPassword"
                   type="password"
@@ -409,7 +462,9 @@ export default function ProfileContent() {
                   disabled={!isEditing}
                 />
                 {errors.confirmPassword && (
-                  <p className="text-red-500 text-sm mt-1">{errors.confirmPassword.message}</p>
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors.confirmPassword.message}
+                  </p>
                 )}
               </div>
 
@@ -417,7 +472,8 @@ export default function ProfileContent() {
                 <Button type="submit">Ubah Password</Button>
               ) : (
                 <p className="text-sm text-gray-500">
-                  Untuk mengubah password, klik &quot;Edit Profil&quot; terlebih dahulu.
+                  Untuk mengubah password, klik &quot;Edit Profil&quot; terlebih
+                  dahulu.
                 </p>
               )}
             </form>
