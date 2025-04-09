@@ -1,5 +1,6 @@
-import type { Config } from "tailwindcss";
-import tailwindAnimate from "tailwindcss-animate";
+import type { Config } from "tailwindcss"
+import tailwindAnimate from "tailwindcss-animate"
+const { heroui } = require("@heroui/theme")
 
 export default {
   darkMode: ["class"],
@@ -8,6 +9,7 @@ export default {
     "./components/**/*.{ts,tsx}",
     "./app/**/*.{ts,tsx}",
     "./src/**/*.{ts,tsx}",
+    "./node_modules/@heroui/theme/dist/components/(spinner|modal|button).js",
   ],
   theme: {
     container: {
@@ -87,5 +89,13 @@ export default {
       },
     },
   },
-  plugins: [tailwindAnimate],
-} satisfies Config;
+  plugins: [
+    tailwindAnimate,
+    heroui({
+      themes: {
+        light: { colors: { danger: { foreground: "#FFFFFF", DEFAULT: "#EF4444" } } },
+        dark: { colors: { danger: { foreground: "#FFFFFF", DEFAULT: "#EF4444" } } },
+      },
+    }),
+  ],
+} satisfies Config

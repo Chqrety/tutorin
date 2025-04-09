@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChevronDown, ChevronUp, MessageSquare, Share2 } from "lucide-react"
+import BackButton from "@/app/components/BackButton"
 
 // Karena data user tersimpan di tabel "users" (full_name)
 // dan data avatar tersimpan di tabel "profiles" (avatar_url)
@@ -96,7 +97,8 @@ export default function StackOverflowPostPage() {
         // 1) Ambil data pertanyaan dengan join ke tabel users dan profiles
         const { data: questionData, error: qError } = await supabase
           .from("questions")
-          .select(`
+          .select(
+            `
             id,
             title,
             content,
@@ -110,7 +112,8 @@ export default function StackOverflowPostPage() {
                 avatar_url
               )
             )
-          `)
+          `,
+          )
           .eq("id", questionId)
           .maybeSingle()
 
@@ -124,7 +127,8 @@ export default function StackOverflowPostPage() {
         // 2) Ambil jawaban untuk pertanyaan dengan join ke tabel users dan profiles
         const { data: answersData, error: aError } = await supabase
           .from("answers")
-          .select(`
+          .select(
+            `
             id,
             content,
             votes,
@@ -135,7 +139,8 @@ export default function StackOverflowPostPage() {
                 avatar_url
               )
             )
-          `)
+          `,
+          )
           .eq("question_id", questionData.id)
           .order("created_at", { ascending: true })
 
@@ -144,7 +149,8 @@ export default function StackOverflowPostPage() {
         // 3) Ambil semua komentar untuk pertanyaan dan jawaban
         const { data: allComments, error: cError } = await supabase
           .from("comments")
-          .select(`
+          .select(
+            `
             id,
             content,
             created_at,
@@ -157,9 +163,12 @@ export default function StackOverflowPostPage() {
                 avatar_url
               )
             )
-          `)
+          `,
+          )
           .or(
-            `question_id.eq.${questionData.id},answer_id.in.(${(answersData as AnswerType[]).map((a) => a.id).join(",")})`,
+            `question_id.eq.${questionData.id},answer_id.in.(${(answersData as AnswerType[])
+              .map((a) => a.id)
+              .join(",")})`,
           )
           .order("created_at", { ascending: true })
 
@@ -199,7 +208,10 @@ export default function StackOverflowPostPage() {
         setQuestionComments(addRepliesToComments(questionComments))
         setAnswerComments(
           Object.fromEntries(
-            Object.entries(answerComments).map(([answerId, comments]) => [answerId, addRepliesToComments(comments)]),
+            Object.entries(answerComments).map(([answerId, comments]) => [
+              answerId,
+              addRepliesToComments(comments),
+            ]),
           ),
         )
       } catch (err) {
@@ -229,7 +241,10 @@ export default function StackOverflowPostPage() {
     const newVotes = question.votes + delta
     // Optimistic update
     setQuestion({ ...question, votes: newVotes })
-    const { error } = await supabase.from("questions").update({ votes: newVotes }).eq("id", question.id)
+    const { error } = await supabase
+      .from("questions")
+      .update({ votes: newVotes })
+      .eq("id", question.id)
     if (error) {
       console.error("Error updating question vote:", error.message)
       // Rollback jika error
@@ -250,7 +265,9 @@ export default function StackOverflowPostPage() {
       return
     }
     // Optimistic update: update state jawaban dengan vote baru
-    setAnswers((prev) => prev.map((ans) => (ans.id === answerId ? { ...ans, votes: ans.votes + delta } : ans)))
+    setAnswers((prev) =>
+      prev.map((ans) => (ans.id === answerId ? { ...ans, votes: ans.votes + delta } : ans)),
+    )
     const { error } = await supabase
       .from("answers")
       .update({ votes: supabase.raw("votes + ?", [delta]) })
@@ -295,7 +312,8 @@ export default function StackOverflowPostPage() {
         question_id: question.id,
         user_id: userId,
       })
-      .select(`
+      .select(
+        `
       id,
       content,
       created_at,
@@ -305,7 +323,8 @@ export default function StackOverflowPostPage() {
           avatar_url
         )
       )
-    `)
+    `,
+      )
       .single()
     if (error || !data) {
       console.error("Error adding question comment:", error?.message)
@@ -334,7 +353,8 @@ export default function StackOverflowPostPage() {
         answer_id: answerId,
         user_id: userId,
       })
-      .select(`
+      .select(
+        `
       id,
       content,
       created_at,
@@ -344,7 +364,8 @@ export default function StackOverflowPostPage() {
           avatar_url
         )
       )
-    `)
+    `,
+      )
       .single()
     if (error || !data) {
       console.error("Error adding answer comment:", error?.message)
@@ -359,7 +380,11 @@ export default function StackOverflowPostPage() {
   }
 
   // Fungsi untuk submit reply (nested comment) pada komentar
-  const handleSubmitReply = async (parentId: string, postType: "question" | "answer", postId?: string) => {
+  const handleSubmitReply = async (
+    parentId: string,
+    postType: "question" | "answer",
+    postId?: string,
+  ) => {
     if (!isLoggedIn) {
       alert("Please log in to comment.")
       return
@@ -385,7 +410,8 @@ export default function StackOverflowPostPage() {
     const { data, error } = await supabase
       .from("comments")
       .insert(insertObj)
-      .select(`
+      .select(
+        `
       id,
       content,
       created_at,
@@ -395,7 +421,8 @@ export default function StackOverflowPostPage() {
           avatar_url
         )
       )
-    `)
+    `,
+      )
       .single()
 
     if (error || !data) {
@@ -453,18 +480,31 @@ export default function StackOverflowPostPage() {
       {/* Question Card */}
       <Card className="mb-6">
         <CardHeader className="flex flex-row justify-between items-center">
-          <CardTitle className="text-2xl font-bold">{question.title}</CardTitle>
+          <div className="flex gap-x-3 items-center">
+            <BackButton />
+            <CardTitle className="text-2xl font-bold">{question.title}</CardTitle>
+          </div>
           <Button variant="outline">Ask Question</Button>
         </CardHeader>
         <CardContent>
           <div className="flex">
             {/* Votes Section for Question */}
             <div className="flex flex-col items-center mr-4">
-              <Button variant="ghost" size="icon" onClick={() => handleVoteQuestion(1)} disabled={questionVoted}>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleVoteQuestion(1)}
+                disabled={questionVoted}
+              >
                 <ChevronUp className="h-4 w-4" />
               </Button>
               <span className="font-bold my-2">{question.votes}</span>
-              <Button variant="ghost" size="icon" onClick={() => handleVoteQuestion(-1)} disabled={questionVoted}>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleVoteQuestion(-1)}
+                disabled={questionVoted}
+              >
                 <ChevronDown className="h-4 w-4" />
               </Button>
             </div>
@@ -472,7 +512,9 @@ export default function StackOverflowPostPage() {
             <div className="flex-grow">
               <p className="mb-4">{question.content}</p>
               {question.code && (
-                <pre className="bg-gray-100 p-4 rounded-md mb-4 whitespace-pre-wrap">{question.code}</pre>
+                <pre className="bg-gray-100 p-4 rounded-md mb-4 whitespace-pre-wrap">
+                  {question.code}
+                </pre>
               )}
               {question.tags && (
                 <div className="flex flex-wrap gap-2 mb-4">
@@ -480,7 +522,10 @@ export default function StackOverflowPostPage() {
                     .split(/\s+/)
                     .filter(Boolean)
                     .map((tag, index) => (
-                      <span key={index} className="bg-blue-100 text-blue-800 px-2 py-1 rounded-md text-xs">
+                      <span
+                        key={index}
+                        className="bg-blue-100 text-blue-800 px-2 py-1 rounded-md text-xs"
+                      >
                         {tag}
                       </span>
                     ))}
@@ -488,7 +533,11 @@ export default function StackOverflowPostPage() {
               )}
               <div className="flex items-center justify-between text-sm text-gray-500">
                 <div className="flex items-center space-x-2">
-                  <Button variant="ghost" size="sm" onClick={() => handleShare(window.location.href)}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleShare(window.location.href)}
+                  >
                     <Share2 className="h-4 w-4 mr-2" />
                     Share
                   </Button>
@@ -511,7 +560,11 @@ export default function StackOverflowPostPage() {
           </div>
         </CardContent>
         <CardFooter>
-          <Button variant="ghost" className="ml-auto" onClick={() => setQuestionCommentOpen((prev) => !prev)}>
+          <Button
+            variant="ghost"
+            className="ml-auto"
+            onClick={() => setQuestionCommentOpen((prev) => !prev)}
+          >
             <MessageSquare className="h-4 w-4 mr-2" />
             Add a comment
           </Button>
@@ -557,7 +610,11 @@ export default function StackOverflowPostPage() {
                       <AvatarFallback>?</AvatarFallback>
                     </Avatar>
                     <span className="font-medium">{comment.user?.full_name || "Unknown User"}</span>
-                    <span>{comment.created_at ? new Date(comment.created_at).toLocaleString() : "Unknown Date"}</span>
+                    <span>
+                      {comment.created_at
+                        ? new Date(comment.created_at).toLocaleString()
+                        : "Unknown Date"}
+                    </span>
                     <Button
                       variant="ghost"
                       size="xs"
@@ -587,13 +644,19 @@ export default function StackOverflowPostPage() {
                         }
                       />
                       <div className="flex space-x-2">
-                        <Button variant="primary" size="sm" onClick={() => handleSubmitReply(comment.id, "question")}>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => handleSubmitReply(comment.id, "question")}
+                        >
                           Submit
                         </Button>
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setReplyForms((prev) => ({ ...prev, [comment.id]: false }))}
+                          onClick={() =>
+                            setReplyForms((prev) => ({ ...prev, [comment.id]: false }))
+                          }
                         >
                           Cancel
                         </Button>
@@ -601,30 +664,35 @@ export default function StackOverflowPostPage() {
                     </div>
                   )}
                   {/* Tampilkan nested replies jika ada */}
-                  {comment.replies && comment.replies.filter((reply) => reply !== null).length > 0 && (
-                    <div className="ml-12 mt-2">
-                      {comment.replies
-                        .filter((reply) => reply !== null)
-                        .map((reply) => (
-                          <div key={reply!.id} className="mb-1">
-                            <div className="flex items-center space-x-2 text-xs text-gray-600">
-                              <Avatar className="h-5 w-5">
-                                <AvatarImage
-                                  src={reply?.user?.profiles?.avatar_url || "/placeholder-user.jpg"}
-                                  alt={reply?.user?.full_name || "User"}
-                                />
-                                <AvatarFallback>?</AvatarFallback>
-                              </Avatar>
-                              <span>{reply?.user?.full_name || "Unknown User"}</span>
-                              <span>
-                                {reply?.created_at ? new Date(reply.created_at).toLocaleString() : "Unknown Date"}
-                              </span>
+                  {comment.replies &&
+                    comment.replies.filter((reply) => reply !== null).length > 0 && (
+                      <div className="ml-12 mt-2">
+                        {comment.replies
+                          .filter((reply) => reply !== null)
+                          .map((reply) => (
+                            <div key={reply!.id} className="mb-1">
+                              <div className="flex items-center space-x-2 text-xs text-gray-600">
+                                <Avatar className="h-5 w-5">
+                                  <AvatarImage
+                                    src={
+                                      reply?.user?.profiles?.avatar_url || "/placeholder-user.jpg"
+                                    }
+                                    alt={reply?.user?.full_name || "User"}
+                                  />
+                                  <AvatarFallback>?</AvatarFallback>
+                                </Avatar>
+                                <span>{reply?.user?.full_name || "Unknown User"}</span>
+                                <span>
+                                  {reply?.created_at
+                                    ? new Date(reply.created_at).toLocaleString()
+                                    : "Unknown Date"}
+                                </span>
+                              </div>
+                              <p className="ml-6 text-xs">{reply?.content || ""}</p>
                             </div>
-                            <p className="ml-6 text-xs">{reply?.content || ""}</p>
-                          </div>
-                        ))}
-                    </div>
-                  )}
+                          ))}
+                      </div>
+                    )}
                 </div>
               ))}
           </CardContent>
@@ -661,7 +729,11 @@ export default function StackOverflowPostPage() {
                 <p className="mb-4">{answer.content}</p>
                 <div className="flex items-center justify-between text-sm text-gray-500 mt-4">
                   <div className="flex items-center space-x-2">
-                    <Button variant="ghost" size="sm" onClick={() => handleShare(window.location.href)}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleShare(window.location.href)}
+                    >
                       <Share2 className="h-4 w-4 mr-2" />
                       Share
                     </Button>
@@ -726,100 +798,114 @@ export default function StackOverflowPostPage() {
             </CardContent>
           )}
           {/* Tampilkan komentar untuk jawaban beserta tombol Reply */}
-          {answerComments[answer.id] && answerComments[answer.id].filter((comment) => comment !== null).length > 0 && (
-            <CardContent className="border-t pt-4">
-              {answerComments[answer.id]
-                .filter((comment) => comment !== null)
-                .map((comment) => (
-                  <div key={comment.id} className="mb-2">
-                    <div className="flex items-center space-x-2 text-sm text-gray-700">
-                      <Avatar className="h-6 w-6">
-                        <AvatarImage
-                          src={comment.user?.profiles?.avatar_url || "/placeholder-user.jpg"}
-                          alt={comment.user?.full_name || "User"}
-                        />
-                        <AvatarFallback>?</AvatarFallback>
-                      </Avatar>
-                      <span className="font-medium">{comment.user?.full_name || "Unknown User"}</span>
-                      <span>{comment.created_at ? new Date(comment.created_at).toLocaleString() : "Unknown Date"}</span>
-                      <Button
-                        variant="ghost"
-                        size="xs"
-                        onClick={() =>
-                          setReplyForms((prev) => ({
-                            ...prev,
-                            [comment.id]: !prev[comment.id],
-                          }))
-                        }
-                      >
-                        Reply
-                      </Button>
-                    </div>
-                    <p className="ml-8">{comment.content}</p>
-                    {/* Form reply untuk komentar jawaban */}
-                    {replyForms[comment.id] && (
-                      <div className="ml-12 mt-2">
-                        <textarea
-                          className="w-full p-2 border rounded-md mb-2 text-sm"
-                          placeholder="Write your reply..."
-                          value={replyTexts[comment.id] || ""}
-                          onChange={(e) =>
-                            setReplyTexts((prev) => ({
+          {answerComments[answer.id] &&
+            answerComments[answer.id].filter((comment) => comment !== null).length > 0 && (
+              <CardContent className="border-t pt-4">
+                {answerComments[answer.id]
+                  .filter((comment) => comment !== null)
+                  .map((comment) => (
+                    <div key={comment.id} className="mb-2">
+                      <div className="flex items-center space-x-2 text-sm text-gray-700">
+                        <Avatar className="h-6 w-6">
+                          <AvatarImage
+                            src={comment.user?.profiles?.avatar_url || "/placeholder-user.jpg"}
+                            alt={comment.user?.full_name || "User"}
+                          />
+                          <AvatarFallback>?</AvatarFallback>
+                        </Avatar>
+                        <span className="font-medium">
+                          {comment.user?.full_name || "Unknown User"}
+                        </span>
+                        <span>
+                          {comment.created_at
+                            ? new Date(comment.created_at).toLocaleString()
+                            : "Unknown Date"}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          onClick={() =>
+                            setReplyForms((prev) => ({
                               ...prev,
-                              [comment.id]: e.target.value,
+                              [comment.id]: !prev[comment.id],
                             }))
                           }
-                        />
-                        <div className="flex space-x-2">
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => handleSubmitReply(comment.id, "answer", answer.id)}
-                          >
-                            Submit
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setReplyForms((prev) => ({ ...prev, [comment.id]: false }))}
-                          >
-                            Cancel
-                          </Button>
+                        >
+                          Reply
+                        </Button>
+                      </div>
+                      <p className="ml-8">{comment.content}</p>
+                      {/* Form reply untuk komentar jawaban */}
+                      {replyForms[comment.id] && (
+                        <div className="ml-12 mt-2">
+                          <textarea
+                            className="w-full p-2 border rounded-md mb-2 text-sm"
+                            placeholder="Write your reply..."
+                            value={replyTexts[comment.id] || ""}
+                            onChange={(e) =>
+                              setReplyTexts((prev) => ({
+                                ...prev,
+                                [comment.id]: e.target.value,
+                              }))
+                            }
+                          />
+                          <div className="flex space-x-2">
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => handleSubmitReply(comment.id, "answer", answer.id)}
+                            >
+                              Submit
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                setReplyForms((prev) => ({ ...prev, [comment.id]: false }))
+                              }
+                            >
+                              Cancel
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                    {/* Tampilkan nested replies jika ada */}
-                    {comment.replies && comment.replies.filter((reply) => reply !== null).length > 0 && (
-                      <div className="ml-12 mt-2">
-                        {comment.replies
-                          .filter((reply) => reply !== null)
-                          .map((reply) => (
-                            <div key={reply!.id} className="mb-1">
-                              <div className="flex items-center space-x-2 text-xs text-gray-600">
-                                <Avatar className="h-5 w-5">
-                                  <AvatarImage
-                                    src={reply?.user?.profiles?.avatar_url || "/placeholder-user.jpg"}
-                                    alt={reply?.user?.full_name || "User"}
-                                  />
-                                  <AvatarFallback>?</AvatarFallback>
-                                </Avatar>
-                                <span>{reply?.user?.full_name || "Unknown User"}</span>
-                                <span>
-                                  {reply?.created_at ? new Date(reply.created_at).toLocaleString() : "Unknown Date"}
-                                </span>
-                              </div>
-                              <p className="ml-6 text-xs">{reply?.content || ""}</p>
-                            </div>
-                          ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-            </CardContent>
-          )}
+                      )}
+                      {/* Tampilkan nested replies jika ada */}
+                      {comment.replies &&
+                        comment.replies.filter((reply) => reply !== null).length > 0 && (
+                          <div className="ml-12 mt-2">
+                            {comment.replies
+                              .filter((reply) => reply !== null)
+                              .map((reply) => (
+                                <div key={reply!.id} className="mb-1">
+                                  <div className="flex items-center space-x-2 text-xs text-gray-600">
+                                    <Avatar className="h-5 w-5">
+                                      <AvatarImage
+                                        src={
+                                          reply?.user?.profiles?.avatar_url ||
+                                          "/placeholder-user.jpg"
+                                        }
+                                        alt={reply?.user?.full_name || "User"}
+                                      />
+                                      <AvatarFallback>?</AvatarFallback>
+                                    </Avatar>
+                                    <span>{reply?.user?.full_name || "Unknown User"}</span>
+                                    <span>
+                                      {reply?.created_at
+                                        ? new Date(reply.created_at).toLocaleString()
+                                        : "Unknown Date"}
+                                    </span>
+                                  </div>
+                                  <p className="ml-6 text-xs">{reply?.content || ""}</p>
+                                </div>
+                              ))}
+                          </div>
+                        )}
+                    </div>
+                  ))}
+              </CardContent>
+            )}
         </Card>
       ))}
     </div>
   )
 }
-
