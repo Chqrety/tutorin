@@ -1,9 +1,7 @@
-// pages/jadwal.tsx
-
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import useSWRInfinite from 'swr/infinite'
+import useSWRInfinite from "swr/infinite"
 import { supabase } from "@/lib/supabase"
 import { Calendar } from "@/components/ui/calendar"
 import { Button } from "@/components/ui/button"
@@ -15,21 +13,35 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { format } from "date-fns"
-import { Clock, Trash, Edit, Calendar as CalendarIcon, MapPin, User, Star } from "lucide-react"
+import {
+  Clock,
+  Trash,
+  Edit,
+  CalendarIcon,
+  MapPin,
+  User,
+  Star,
+  Plus,
+  CheckCircle,
+  AlertCircle,
+  Clock3,
+} from "lucide-react"
 import { useForm, Controller } from "react-hook-form"
 import { yupResolver } from "@hookform/resolvers/yup"
 import * as yup from "yup"
-import { toast } from 'react-toastify'
-import InfiniteScroll from 'react-infinite-scroll-component'
+import { toast } from "react-toastify"
+import InfiniteScroll from "react-infinite-scroll-component"
+import ReactStars from "react-stars"
+import { useMediaQuery } from "@/hooks/use-media-query"
 
-import ReactStars from 'react-stars'; // Menggunakan 'react-stars'
-
-type SenderRole = 'admin' | 'user'
+type SenderRole = "admin" | "user"
 
 type Schedule = {
   id: number
@@ -39,7 +51,7 @@ type Schedule = {
   description: string
   address: string
   status: string
-  confirmed: boolean // Properti baru
+  confirmed: boolean
   counselor?: {
     id: string
     name: string
@@ -71,7 +83,8 @@ const schema = yup.object().shape({
 })
 
 const ratingSchema = yup.object().shape({
-  stars: yup.number()
+  stars: yup
+    .number()
     .required("Rating bintang wajib diisi")
     .min(0.5, "Minimal 0.5 bintang")
     .max(5, "Maksimal 5 bintang"),
@@ -80,26 +93,27 @@ const ratingSchema = yup.object().shape({
 
 const fetcher = async (userId: string, status: string, page: number, pageSize: number) => {
   console.log(`Fetching schedules for userId: ${userId}, status: ${status}, page: ${page}, pageSize: ${pageSize}`)
-  
+
   const { data, error, count } = await supabase
     .from("schedules")
-    .select(`
+    .select(
+      `
       *,
       counselor: counselors(id, admin: admins(name, email)),
       rating: ratings(stars, description)
-    `, { count: 'exact' })
+    `,
+      { count: "exact" },
+    )
     .eq("user_id", userId)
     .eq("status", status)
     .range((page - 1) * pageSize, page * pageSize - 1)
-    .order('date', { ascending: true })
-    .order('time', { ascending: true })
+    .order("date", { ascending: true })
+    .order("time", { ascending: true })
 
   if (error) {
     console.error("Error in fetcher:", error)
     throw error
   }
-
-  console.log("Fetcher data:", data)
 
   return {
     schedules: data.map((item: any) => ({
@@ -110,16 +124,20 @@ const fetcher = async (userId: string, status: string, page: number, pageSize: n
       description: item.description,
       address: item.address,
       status: item.status,
-      confirmed: item.confirmed, // Sertakan confirmed
-      counselor: item.counselor ? {
-        id: item.counselor.id,
-        name: item.counselor.admin.name,
-        adminEmail: item.counselor.admin.email,
-      } : null,
-      rating: item.rating ? {
-        stars: item.rating.stars,
-        description: item.rating.description,
-      } : null,
+      confirmed: item.confirmed,
+      counselor: item.counselor
+        ? {
+            id: item.counselor.id,
+            name: item.counselor.admin.name,
+            adminEmail: item.counselor.admin.email,
+          }
+        : null,
+      rating: item.rating
+        ? {
+            stars: item.rating.stars,
+            description: item.rating.description,
+          }
+        : null,
     })),
     total: count,
   }
@@ -129,39 +147,45 @@ export default function JadwalPage() {
   const [date, setDate] = useState<Date | undefined>(new Date())
   const [counselors, setCounselors] = useState<Counselor[]>([])
   const [isRescheduleOpen, setIsRescheduleOpen] = useState(false)
-  const [rescheduleData, setRescheduleData] = useState<{ id: number, date: Date, time: string } | null>(null)
+  const [rescheduleData, setRescheduleData] = useState<{ id: number; date: Date; time: string } | null>(null)
+  const [ratingData, setRatingData] = useState<{ scheduleId: number; open: boolean }>({ scheduleId: 0, open: false })
+  const [activeTab, setActiveTab] = useState<"Pending" | "Accepted" | "Finished">("Pending")
+  const [userId, setUserId] = useState<string | null>(null)
+  const [isAddScheduleOpen, setIsAddScheduleOpen] = useState(false)
 
-  // State untuk rating modal
-  const [ratingData, setRatingData] = useState<{ scheduleId: number, open: boolean }>({ scheduleId: 0, open: false })
-  
-  // Setup React Hook Form untuk rating
-  const { 
-    control, 
-    register: registerRating, 
-    handleSubmit: handleSubmitRating, 
-    formState: { errors: errorsRating }, 
-    reset: resetRating 
+  const isMobile = useMediaQuery("(max-width: 768px)")
+  const pageSize = 10
+
+  // Rating form
+  const {
+    control,
+    register: registerRating,
+    handleSubmit: handleSubmitRating,
+    formState: { errors: errorsRating },
+    reset: resetRating,
   } = useForm<RatingData>({
     resolver: yupResolver(ratingSchema),
     defaultValues: {
-      stars: 0.5, // Atur defaultValue ke 0.5
+      stars: 0.5,
       description: "",
     },
   })
 
-  // Setup React Hook Form untuk jadwal
-  const { register, handleSubmit, formState: { errors }, reset } = useForm({
+  // Schedule form
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+  } = useForm({
     resolver: yupResolver(schema),
   })
 
-  // Ambil userId dari session
-  const [userId, setUserId] = useState<string | null>(null)
-
+  // Get user ID from session
   useEffect(() => {
     const userSession = sessionStorage.getItem("userSession")
     if (userSession) {
       const { userId } = JSON.parse(userSession)
-      console.log("User ID:", userId) // Untuk verifikasi
       setUserId(userId)
     } else {
       console.error("User session tidak ditemukan!")
@@ -172,9 +196,7 @@ export default function JadwalPage() {
   useEffect(() => {
     const fetchCounselors = async () => {
       try {
-        const { data, error } = await supabase
-          .from("counselors")
-          .select(`
+        const { data, error } = await supabase.from("counselors").select(`
             id,
             admin:admins(name, email)
           `)
@@ -184,14 +206,11 @@ export default function JadwalPage() {
           return
         }
 
-        // Transformasi data untuk menyesuaikan format
         const transformedData = data.map((item: any) => ({
           id: item.id,
-          name: item.admin.name, // Nama admin sebagai nama konselor
-          adminEmail: item.admin.email, // Email admin
+          name: item.admin.name,
+          adminEmail: item.admin.email,
         }))
-
-        console.log("Transformed Counselors:", transformedData) // Untuk verifikasi
 
         setCounselors(transformedData)
       } catch (err) {
@@ -202,32 +221,27 @@ export default function JadwalPage() {
     fetchCounselors()
   }, [])
 
-  // Fetch schedules untuk 'Accepted' dan 'Pending' dengan SWR Infinite terpisah
-  const pageSize = 10 // Tingkatkan pageSize menjadi 10
-
-  // State untuk tab
-  const [activeTab, setActiveTab] = useState<'Pending' | 'Accepted' | 'Finished'>('Pending') // ADDED 'Finished'
-
-  // Fetcher Accepted
+  // Fetcher for Accepted schedules
   const getKeyAccepted = (pageIndex: number, previousPageData: any) => {
-    // Jika sudah tidak ada data lagi
     if (previousPageData && !previousPageData.schedules.length) return null
-    return userId ? ['schedules', userId, 'Accepted', pageIndex + 1, pageSize] : null
+    return userId ? ["schedules", userId, "Accepted", pageIndex + 1, pageSize] : null
   }
 
   const fetcherAccepted = (key: any) => fetcher(key[1], key[2], key[3], key[4])
 
-  const { data: dataAccepted, error: errorAccepted, size: sizeAccepted, setSize: setSizeAccepted, mutate: mutateAccepted } = useSWRInfinite(
-    getKeyAccepted,
-    fetcherAccepted,
-    {
-      dedupingInterval: 60000, // 1 menit
-      revalidateOnFocus: false,
-    }
-  )
+  const {
+    data: dataAccepted,
+    error: errorAccepted,
+    size: sizeAccepted,
+    setSize: setSizeAccepted,
+    mutate: mutateAccepted,
+  } = useSWRInfinite(getKeyAccepted, fetcherAccepted, {
+    dedupingInterval: 60000,
+    revalidateOnFocus: false,
+  })
 
   const acceptedSchedules = useMemo(() => {
-    return dataAccepted ? dataAccepted.flatMap(page => page.schedules) : []
+    return dataAccepted ? dataAccepted.flatMap((page) => page.schedules) : []
   }, [dataAccepted])
 
   const isLoadingInitialAccepted = !dataAccepted && !errorAccepted
@@ -238,56 +252,57 @@ export default function JadwalPage() {
   const isReachingEndAccepted =
     isEmptyAccepted || (dataAccepted && dataAccepted[dataAccepted.length - 1]?.schedules.length < pageSize)
 
-  // Fetcher Pending
+  // Fetcher for Pending schedules
   const getKeyPending = (pageIndex: number, previousPageData: any) => {
-    // Jika sudah tidak ada data lagi
     if (previousPageData && !previousPageData.schedules.length) return null
-    return userId ? ['schedules', userId, 'Pending', pageIndex + 1, pageSize] : null // 'Pending' dengan 'P' kapital
+    return userId ? ["schedules", userId, "Pending", pageIndex + 1, pageSize] : null
   }
 
   const fetcherPending = (key: any) => fetcher(key[1], key[2], key[3], key[4])
 
-  const { data: dataPending, error: errorPending, size: sizePending, setSize: setSizePending, mutate: mutatePending } = useSWRInfinite(
-    getKeyPending,
-    fetcherPending,
-    {
-      dedupingInterval: 60000, // 1 menit
-      revalidateOnFocus: false,
-    }
-  )
+  const {
+    data: dataPending,
+    error: errorPending,
+    size: sizePending,
+    setSize: setSizePending,
+    mutate: mutatePending,
+  } = useSWRInfinite(getKeyPending, fetcherPending, {
+    dedupingInterval: 60000,
+    revalidateOnFocus: false,
+  })
 
   const pendingSchedules = useMemo(() => {
-    return dataPending ? dataPending.flatMap(page => page.schedules) : []
+    return dataPending ? dataPending.flatMap((page) => page.schedules) : []
   }, [dataPending])
 
   const isLoadingInitialPending = !dataPending && !errorPending
   const isLoadingMorePending =
-    isLoadingInitialPending ||
-    (sizePending > 0 && dataPending && typeof dataPending[sizePending - 1] === "undefined")
+    isLoadingInitialPending || (sizePending > 0 && dataPending && typeof dataPending[sizePending - 1] === "undefined")
   const isEmptyPending = dataPending?.[0]?.schedules?.length === 0
   const isReachingEndPending =
     isEmptyPending || (dataPending && dataPending[dataPending.length - 1]?.schedules.length < pageSize)
 
-  // ADDED: Fetcher Finished
+  // Fetcher for Finished schedules
   const getKeyFinished = (pageIndex: number, previousPageData: any) => {
-    // Jika sudah tidak ada data lagi
     if (previousPageData && !previousPageData.schedules.length) return null
-    return userId ? ['schedules', userId, 'Finished', pageIndex + 1, pageSize] : null // 'Finished' dengan 'F' kapital
+    return userId ? ["schedules", userId, "Finished", pageIndex + 1, pageSize] : null
   }
 
   const fetcherFinished = (key: any) => fetcher(key[1], key[2], key[3], key[4])
 
-  const { data: dataFinished, error: errorFinished, size: sizeFinished, setSize: setSizeFinished, mutate: mutateFinished } = useSWRInfinite(
-    getKeyFinished,
-    fetcherFinished,
-    {
-      dedupingInterval: 60000, // 1 menit
-      revalidateOnFocus: false,
-    }
-  )
+  const {
+    data: dataFinished,
+    error: errorFinished,
+    size: sizeFinished,
+    setSize: setSizeFinished,
+    mutate: mutateFinished,
+  } = useSWRInfinite(getKeyFinished, fetcherFinished, {
+    dedupingInterval: 60000,
+    revalidateOnFocus: false,
+  })
 
   const finishedSchedules = useMemo(() => {
-    return dataFinished ? dataFinished.flatMap(page => page.schedules) : []
+    return dataFinished ? dataFinished.flatMap((page) => page.schedules) : []
   }, [dataFinished])
 
   const isLoadingInitialFinished = !dataFinished && !errorFinished
@@ -298,61 +313,66 @@ export default function JadwalPage() {
   const isReachingEndFinished =
     isEmptyFinished || (dataFinished && dataFinished[dataFinished.length - 1]?.schedules.length < pageSize)
 
-  // Menambahkan Real-time Subscriptions
+  // Real-time subscriptions
   useEffect(() => {
     if (!userId) return
 
-    // Real-time untuk Jadwal Accepted
     const subscriptionAccepted = supabase
-      .channel('accepted-schedules')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'schedules',
-        filter: `user_id=eq.${userId}&status=eq.Accepted`, // 'Accepted' dengan 'A' kapital
-      }, payload => {
-        console.log('Change received for accepted:', payload)
-        mutateAccepted()
-      })
+      .channel("accepted-schedules")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "schedules",
+          filter: `user_id=eq.${userId}&status=eq.Accepted`,
+        },
+        () => {
+          mutateAccepted()
+        },
+      )
       .subscribe()
 
-    // Real-time untuk Jadwal Pending
     const subscriptionPending = supabase
-      .channel('pending-schedules')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'schedules',
-        filter: `user_id=eq.${userId}&status=eq.Pending`, // 'Pending' dengan 'P' kapital
-      }, payload => {
-        console.log('Change received for pending:', payload)
-        mutatePending()
-      })
+      .channel("pending-schedules")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "schedules",
+          filter: `user_id=eq.${userId}&status=eq.Pending`,
+        },
+        () => {
+          mutatePending()
+        },
+      )
       .subscribe()
 
-    // Real-time untuk Jadwal Finished // ADDED
     const subscriptionFinished = supabase
-      .channel('finished-schedules')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'schedules',
-        filter: `user_id=eq.${userId}&status=eq.Finished`, // 'Finished' dengan 'F' kapital
-      }, payload => {
-        console.log('Change received for finished:', payload)
-        mutateFinished()
-      })
+      .channel("finished-schedules")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "schedules",
+          filter: `user_id=eq.${userId}&status=eq.Finished`,
+        },
+        () => {
+          mutateFinished()
+        },
+      )
       .subscribe()
 
-    // Cleanup subscriptions saat komponen unmount
     return () => {
       supabase.removeChannel(subscriptionAccepted)
       supabase.removeChannel(subscriptionPending)
-      supabase.removeChannel(subscriptionFinished) // ADDED
+      supabase.removeChannel(subscriptionFinished)
     }
-  }, [userId, mutateAccepted, mutatePending, mutateFinished]) // ADDED mutateFinished
+  }, [userId, mutateAccepted, mutatePending, mutateFinished])
 
-  // Fungsi untuk mengirim notifikasi email
+  // Email notification function
   const sendEmailNotification = async (
     adminEmail: string,
     scheduleId: number,
@@ -361,20 +381,20 @@ export default function JadwalPage() {
     address: string,
     title: string,
     senderRole: SenderRole,
-    action: string // Tambahkan parameter action untuk membedakan jenis email
+    action: string,
   ) => {
     try {
       const subjectMap: Record<string, string> = {
-        'add': `Jadwal Konsultasi Baru: ${title}`,
-        'reschedule': `Jadwal Konsultasi Di-reschedule: ${title}`,
-        'cancel': `Jadwal Konsultasi Dibatalkan: ${title}`,
-        'confirm': `Konfirmasi Jadwal Konsultasi: ${title}`, // Tambahkan aksi 'confirm'
-        'delete': `Jadwal Konsultasi Dihapus: ${title}`, // Tambahkan aksi 'delete'
-        'finished': `Jadwal Konsultasi Selesai: ${title}`, // Tambahkan aksi 'finished'
+        add: `Jadwal Konsultasi Baru: ${title}`,
+        reschedule: `Jadwal Konsultasi Di-reschedule: ${title}`,
+        cancel: `Jadwal Konsultasi Dibatalkan: ${title}`,
+        confirm: `Konfirmasi Jadwal Konsultasi: ${title}`,
+        delete: `Jadwal Konsultasi Dihapus: ${title}`,
+        finished: `Jadwal Konsultasi Selesai: ${title}`,
       }
 
       const bodyMap: Record<string, string> = {
-        'add': `
+        add: `
 Anda memiliki jadwal konsultasi baru.
 
 ID Jadwal: ${scheduleId}
@@ -385,7 +405,7 @@ Judul: ${title}
 
 Silakan login ke dashboard untuk melihat detail lebih lanjut.
         `,
-        'reschedule': `
+        reschedule: `
 Jadwal konsultasi Anda telah di-reschedule.
 
 ID Jadwal: ${scheduleId}
@@ -396,7 +416,7 @@ Judul: ${title}
 
 Silakan login ke dashboard untuk melihat detail lebih lanjut.
         `,
-        'cancel': `
+        cancel: `
 Jadwal konsultasi Anda telah dibatalkan.
 
 ID Jadwal: ${scheduleId}
@@ -407,7 +427,7 @@ Judul: ${title}
 
 Silakan hubungi kami jika Anda memiliki pertanyaan lebih lanjut.
         `,
-        'confirm': `
+        confirm: `
 Jadwal konsultasi Anda telah dikonfirmasi.
 
 ID Jadwal: ${scheduleId}
@@ -418,7 +438,7 @@ Judul: ${title}
 
 Terima kasih telah mengonfirmasi jadwal ini.
         `,
-        'delete': `
+        delete: `
 Jadwal konsultasi Anda telah dihapus.
 
 ID Jadwal: ${scheduleId}
@@ -429,7 +449,7 @@ Judul: ${title}
 
 Jika Anda memiliki pertanyaan lebih lanjut, silakan hubungi kami.
         `,
-        'finished': `
+        finished: `
 Jadwal konsultasi Anda telah ditandai sebagai selesai.
 
 ID Jadwal: ${scheduleId}
@@ -446,14 +466,14 @@ Terima kasih telah menggunakan layanan kami.
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN}`, // Optional: Hapus jika tidak diperlukan
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN}`,
         },
         body: JSON.stringify({
-          email: adminEmail, // Email penerima
+          email: adminEmail,
           subject: subjectMap[action],
           body: bodyMap[action],
-          senderRole, // Sertakan senderRole di body
-          action, // Sertakan aksi
+          senderRole,
+          action,
         }),
       })
 
@@ -471,7 +491,7 @@ Terima kasih telah menggunakan layanan kami.
     }
   }
 
-  // Fungsi untuk menambah jadwal
+  // Add schedule function
   const onSubmit = async (formData: any) => {
     const { title, description, time, address, counselor_id } = formData
 
@@ -486,19 +506,19 @@ Terima kasih telah menggunakan layanan kami.
           .from("schedules")
           .insert({
             user_id: userId,
-            date: date.toISOString().split("T")[0], // Format tanggal
+            date: date.toISOString().split("T")[0],
             time: time,
             title: title,
             description: description,
             address: address,
-            counselor_id: counselor_id, // Menambahkan counselor_id
-            status: 'Pending', // Atur status sebagai 'Pending' untuk jadwal baru
-            confirmed: false, // Atur confirmed sebagai false
+            counselor_id: counselor_id,
+            status: "Pending",
+            confirmed: false,
           })
           .select(`
             *,
             counselor: counselors(id, admin: admins(name, email))
-          `) // Menambahkan relasi counselor
+          `)
 
         if (error) {
           console.error(error)
@@ -506,16 +526,13 @@ Terima kasih telah menggunakan layanan kami.
           return
         }
 
-        // Mutasi SWR untuk mengambil data terbaru
         mutatePending()
         mutateAccepted()
-        mutateFinished() // ADDED
+        mutateFinished()
 
-        reset() // Reset form
+        reset()
+        setIsAddScheduleOpen(false)
         toast.success("Jadwal berhasil ditambahkan! Silakan konfirmasi untuk mengirim notifikasi email.")
-
-        // Tidak mengirim email otomatis di sini
-
       } catch (err: any) {
         console.error(err)
         toast.error("Terjadi kesalahan. Coba lagi.")
@@ -525,9 +542,8 @@ Terima kasih telah menggunakan layanan kami.
     }
   }
 
-  // Fungsi untuk mereschedule jadwal
+  // Reschedule function
   const handleReschedule = async (scheduleId: number, newDate: Date, newTime: string) => {
-    // Validasi tanggal dan waktu baru
     if (!newDate || !newTime) {
       toast.error("Tanggal dan waktu baru wajib diisi.")
       return
@@ -545,49 +561,41 @@ Terima kasih telah menggunakan layanan kami.
         return
       }
 
-      // Mutasi SWR untuk mengambil data terbaru
       mutatePending()
       mutateAccepted()
-      mutateFinished() // ADDED
+      mutateFinished()
 
       toast.success("Jadwal berhasil di-reschedule!")
 
-      // Kirim notifikasi email
-      const scheduleItem = [...pendingSchedules, ...acceptedSchedules].find(s => s.id === scheduleId)
+      const scheduleItem = [...pendingSchedules, ...acceptedSchedules].find((s) => s.id === scheduleId)
       if (scheduleItem && scheduleItem.counselor) {
         const formattedDate = format(newDate, "dd MMMM yyyy")
         const emailSent = await sendEmailNotification(
-          scheduleItem.counselor.adminEmail, // Kirim ke email admin
+          scheduleItem.counselor.adminEmail,
           scheduleItem.id,
           formattedDate,
           newTime,
           scheduleItem.address,
           scheduleItem.title,
-          'user', // Sertakan senderRole sebagai 'user'
-          'reschedule' // Jenis aksi
+          "user",
+          "reschedule",
         )
 
-        if (emailSent) {
-          console.log("Email notifikasi berhasil dikirim.")
-        } else {
+        if (!emailSent) {
           toast.error("Jadwal berhasil di-reschedule, tetapi gagal mengirim notifikasi email.")
         }
       }
-
     } catch (err: any) {
       console.error("Error saat mereschedule jadwal:", err)
       toast.error("Terjadi kesalahan saat mereschedule jadwal.")
     }
   }
 
-  // Fungsi untuk membatalkan jadwal (mengubah status menjadi 'Canceled')
+  // Cancel schedule function
   const handleCancelSchedule = async (scheduleId: number) => {
     if (confirm("Apakah Anda yakin ingin membatalkan jadwal ini?")) {
       try {
-        const { error } = await supabase
-          .from("schedules")
-          .update({ status: 'Canceled' }) // Atur status menjadi 'Canceled'
-          .eq("id", scheduleId)
+        const { error } = await supabase.from("schedules").update({ status: "Canceled" }).eq("id", scheduleId)
 
         if (error) {
           console.error("Gagal membatalkan jadwal:", error)
@@ -595,31 +603,27 @@ Terima kasih telah menggunakan layanan kami.
           return
         }
 
-        // Mutasi SWR untuk mengambil data terbaru
         mutatePending()
         mutateAccepted()
-        mutateFinished() // ADDED
+        mutateFinished()
 
         toast.success("Jadwal berhasil dibatalkan!")
 
-        // Kirim notifikasi email jika diperlukan
-        const scheduleItem = [...pendingSchedules, ...acceptedSchedules].find(s => s.id === scheduleId)
+        const scheduleItem = [...pendingSchedules, ...acceptedSchedules].find((s) => s.id === scheduleId)
         if (scheduleItem && scheduleItem.counselor) {
           const formattedDate = format(scheduleItem.date, "dd MMMM yyyy")
           const emailSent = await sendEmailNotification(
-            scheduleItem.counselor.adminEmail, // Kirim ke email admin
+            scheduleItem.counselor.adminEmail,
             scheduleItem.id,
             formattedDate,
             scheduleItem.time,
             scheduleItem.address,
             scheduleItem.title,
-            'user', // Sertakan senderRole sebagai 'user'
-            'cancel' // Jenis aksi
+            "user",
+            "cancel",
           )
 
-          if (emailSent) {
-            console.log("Email notifikasi pembatalan berhasil dikirim.")
-          } else {
+          if (!emailSent) {
             toast.error("Jadwal berhasil dibatalkan, tetapi gagal mengirim notifikasi email.")
           }
         }
@@ -630,14 +634,11 @@ Terima kasih telah menggunakan layanan kami.
     }
   }
 
-  // Fungsi untuk menghapus jadwal secara permanen
+  // Delete schedule function
   const handleDeleteSchedule = async (scheduleId: number) => {
     if (confirm("Apakah Anda yakin ingin menghapus jadwal ini?")) {
       try {
-        const { error } = await supabase
-          .from("schedules")
-          .delete()
-          .eq("id", scheduleId)
+        const { error } = await supabase.from("schedules").delete().eq("id", scheduleId)
 
         if (error) {
           console.error("Gagal menghapus jadwal:", error)
@@ -645,34 +646,11 @@ Terima kasih telah menggunakan layanan kami.
           return
         }
 
-        // Mutasi SWR untuk mengambil data terbaru
         mutatePending()
         mutateAccepted()
-        mutateFinished() // ADDED
+        mutateFinished()
 
         toast.success("Jadwal berhasil dihapus!")
-
-        // Kirim notifikasi email jika diperlukan
-        // const scheduleItem = [...pendingSchedules, ...acceptedSchedules].find(s => s.id === scheduleId)
-        // if (scheduleItem && scheduleItem.counselor) {
-        //   const formattedDate = format(scheduleItem.date, "dd MMMM yyyy")
-        //   const emailSent = await sendEmailNotification(
-        //     scheduleItem.counselor.adminEmail, // Kirim ke email admin
-        //     scheduleItem.id,
-        //     formattedDate,
-        //     scheduleItem.time,
-        //     scheduleItem.address,
-        //     scheduleItem.title,
-        //     'user', // Sertakan senderRole sebagai 'user'
-        //     'delete' // Jenis aksi
-        //   )
-
-        //   if (emailSent) {
-        //     console.log("Email notifikasi penghapusan berhasil dikirim.")
-        //   } else {
-        //     toast.error("Jadwal berhasil dihapus, tetapi gagal mengirim notifikasi email.")
-        //   }
-        // }
       } catch (err: any) {
         console.error("Error saat menghapus jadwal:", err)
         toast.error("Terjadi kesalahan saat menghapus jadwal.")
@@ -680,86 +658,76 @@ Terima kasih telah menggunakan layanan kami.
     }
   }
 
-  // Fungsi untuk menghandle pengiriman rating
+  // Submit rating function
   const onSubmitRating = async (data: any) => {
-    const { stars, description } = data;
-    const { scheduleId } = ratingData; // Pastikan scheduleId adalah angka
-  
+    const { stars, description } = data
+    const { scheduleId } = ratingData
+
     try {
-      const userSession = sessionStorage.getItem("userSession");
+      const userSession = sessionStorage.getItem("userSession")
       if (!userSession) {
-        toast.error("Anda belum login!");
-        return;
+        toast.error("Anda belum login!")
+        return
       }
-  
-      const { token } = JSON.parse(userSession);
+
+      const { token } = JSON.parse(userSession)
       if (!token) {
-        toast.error("Token tidak tersedia. Harap login ulang.");
-        return;
+        toast.error("Token tidak tersedia. Harap login ulang.")
+        return
       }
-  
-      console.log("Data yang dikirim ke backend:", {
-        schedule_id: Number(scheduleId), // Pastikan ini angka (int)
-        stars,
-        description,
-      });
-  
+
       const response = await fetch("/api/submit-rating", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`, // Kirim token dalam request
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          schedule_id: Number(scheduleId), // Ubah ke angka (int)
+          schedule_id: Number(scheduleId),
           stars,
           description,
         }),
-      });
-  
+      })
+
       if (!response.ok) {
-        const resData = await response.json();
-        console.error("Gagal mengirim rating:", resData.message, resData.errors);
-        toast.error(`Gagal mengirim rating: ${resData.message || "Terjadi kesalahan."}`);
-        return;
+        const resData = await response.json()
+        console.error("Gagal mengirim rating:", resData.message, resData.errors)
+        toast.error(`Gagal mengirim rating: ${resData.message || "Terjadi kesalahan."}`)
+        return
       }
-  
-      toast.success("Rating berhasil dikirim!");
-      mutatePending();
-      mutateAccepted();
-      mutateFinished();
-  
-      setRatingData({ scheduleId: 0, open: false });
-      resetRating();
+
+      toast.success("Rating berhasil dikirim!")
+      mutatePending()
+      mutateAccepted()
+      mutateFinished()
+
+      setRatingData({ scheduleId: 0, open: false })
+      resetRating()
     } catch (err) {
-      console.error("Error saat mengirim rating:", err);
-      toast.error("Terjadi kesalahan saat mengirim rating.");
+      console.error("Error saat mengirim rating:", err)
+      toast.error("Terjadi kesalahan saat mengirim rating.")
     }
-  };
-  
-  // Fungsi untuk mengonfirmasi jadwal dan mengirim email notifikasi
+  }
+
+  // Confirm schedule function
   const handleConfirmSchedule = async (schedule: Schedule) => {
     try {
       const formattedDate = format(schedule.date, "dd MMMM yyyy")
 
       const emailSent = await sendEmailNotification(
-        schedule.counselor!.adminEmail, // Pastikan counselor ada
+        schedule.counselor!.adminEmail,
         schedule.id,
         formattedDate,
         schedule.time,
         schedule.address,
         schedule.title,
-        'user', // Sertakan senderRole sebagai 'user'
-        'confirm' // Jenis aksi
+        "user",
+        "confirm",
       )
 
       if (emailSent) {
         toast.success("Notifikasi email berhasil dikirim ke admin.")
-        // Update field 'confirmed' menjadi true di database
-        const { error } = await supabase
-          .from("schedules")
-          .update({ confirmed: true })
-          .eq("id", schedule.id)
+        const { error } = await supabase.from("schedules").update({ confirmed: true }).eq("id", schedule.id)
 
         if (error) {
           console.error("Gagal memperbarui status konfirmasi:", error)
@@ -767,10 +735,9 @@ Terima kasih telah menggunakan layanan kami.
           return
         }
 
-        // Mutasi SWR untuk mengambil data terbaru
         mutatePending()
         mutateAccepted()
-        mutateFinished() // ADDED
+        mutateFinished()
       } else {
         toast.error("Gagal mengirim notifikasi email ke admin.")
       }
@@ -780,426 +747,497 @@ Terima kasih telah menggunakan layanan kami.
     }
   }
 
+  // Render schedule card
+  const renderScheduleCard = (schedule: Schedule) => {
+    const getStatusBadge = () => {
+      switch (schedule.status) {
+        case "Pending":
+          return (
+            <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300">
+              Pending
+            </Badge>
+          )
+        case "Accepted":
+          return (
+            <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
+              Accepted
+            </Badge>
+          )
+        case "Finished":
+          return (
+            <Badge variant="outline" className="bg-purple-100 text-purple-800 border-purple-300">
+              Finished
+            </Badge>
+          )
+        case "Canceled":
+          return (
+            <Badge variant="outline" className="bg-red-100 text-red-800 border-red-300">
+              Canceled
+            </Badge>
+          )
+        default:
+          return <Badge variant="outline">{schedule.status}</Badge>
+      }
+    }
+
+    return (
+      <Card key={schedule.id} className="mb-4 hover:shadow-md transition-shadow">
+        <CardHeader className="pb-2">
+          <div className="flex justify-between items-start">
+            <CardTitle className="text-lg">{schedule.title}</CardTitle>
+            {getStatusBadge()}
+          </div>
+          <CardDescription>
+            <div className="flex items-center gap-1 mt-1">
+              <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+              <span>{format(schedule.date, "dd MMMM yyyy")}</span>
+            </div>
+            <div className="flex items-center gap-1 mt-1">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <span>{schedule.time}</span>
+            </div>
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pb-2">
+          <div className="flex items-start gap-1 mb-1">
+            <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
+            <span>{schedule.address}</span>
+          </div>
+          {schedule.counselor && (
+            <div className="flex items-start gap-1 mb-1">
+              <User className="h-4 w-4 text-muted-foreground mt-0.5" />
+              <span>
+                <strong>Konselor:</strong> {schedule.counselor.name}
+              </span>
+            </div>
+          )}
+          <div className="mt-2">
+            <p className="text-sm text-muted-foreground">{schedule.description}</p>
+          </div>
+          {schedule.rating && (
+            <div className="flex items-center mt-2">
+              <Star className="h-4 w-4 text-yellow-500 mr-1" />
+              <span className="text-sm">{schedule.rating.stars} / 5</span>
+            </div>
+          )}
+        </CardContent>
+        <CardFooter className="flex flex-wrap gap-2 pt-0">
+          {schedule.status === "Pending" && !schedule.confirmed && (
+            <>
+              <Button size="sm" onClick={() => handleConfirmSchedule(schedule)}>
+                <CheckCircle className="h-4 w-4 mr-1" /> Konfirmasi
+              </Button>
+              <Button size="sm" variant="destructive" onClick={() => handleDeleteSchedule(schedule.id)}>
+                <Trash className="h-4 w-4 mr-1" /> Hapus
+              </Button>
+            </>
+          )}
+          {(schedule.status === "Pending" || schedule.status === "Accepted") && schedule.confirmed && (
+            <>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setRescheduleData({ id: schedule.id, date: schedule.date, time: schedule.time })
+                  setIsRescheduleOpen(true)
+                }}
+              >
+                <Edit className="h-4 w-4 mr-1" /> Reschedule
+              </Button>
+              <Button size="sm" variant="destructive" onClick={() => handleCancelSchedule(schedule.id)}>
+                <AlertCircle className="h-4 w-4 mr-1" /> Batalkan
+              </Button>
+            </>
+          )}
+          {schedule.status === "Finished" && !schedule.rating && (
+            <Button size="sm" onClick={() => setRatingData({ scheduleId: schedule.id, open: true })}>
+              <Star className="h-4 w-4 mr-1" /> Beri Rating
+            </Button>
+          )}
+          {(schedule.status === "Accepted" || schedule.status === "Finished") && (
+            <Button size="sm" variant="destructive" onClick={() => handleDeleteSchedule(schedule.id)}>
+              <Trash className="h-4 w-4 mr-1" /> Hapus
+            </Button>
+          )}
+        </CardFooter>
+      </Card>
+    )
+  }
+
   return (
-    <div className="space-y-6 p-4">
-      <h2 className="text-3xl font-bold tracking-tight mb-4">Jadwal Konsultasi</h2>
-      
-      {/* Layout untuk Kalender dan Tambah Jadwal */}
-      <div className="flex flex-col md:flex-row gap-4 md:gap-6 items-start">
-        <div className="md:w-1/2 w-full">
-          <Calendar 
-            mode="single" 
-            selected={date} 
-            onSelect={setDate} 
-            className="rounded-md border p-2 w-full" 
-          />
-        </div>
-        <div className="md:w-1/2 w-full">
-          {/* Dialog untuk Menambah Jadwal */}
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button className="w-full">Tambah Jadwal</Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px] w-full">
-              <DialogHeader>
-                <DialogTitle>Tambah Jadwal Baru</DialogTitle>
-                <DialogDescription>Masukkan detail jadwal konsultasi baru di sini.</DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                <div>
-                  <Label htmlFor="title">Judul</Label>
-                  <Input
-                    id="title"
-                    {...register("title")}
-                    className="mt-1"
-                  />
-                  {errors.title && <p className="text-red-500 text-sm">{errors.title.message}</p>}
-                </div>
-                <div>
-                  <Label htmlFor="time">Waktu</Label>
-                  <Input
-                    id="time"
-                    type="time"
-                    {...register("time")}
-                    className="mt-1"
-                  />
-                  {errors.time && <p className="text-red-500 text-sm">{errors.time.message}</p>}
-                </div>
-                <div>
-                  <Label htmlFor="address">Alamat</Label>
-                  <Input
-                    id="address"
-                    {...register("address")}
-                    className="mt-1"
-                  />
-                  {errors.address && <p className="text-red-500 text-sm">{errors.address.message}</p>}
-                </div>
-                <div>
-                  <Label htmlFor="counselor">Konselor</Label>
-                  <select
-                    id="counselor"
-                    {...register("counselor_id")}
-                    className="mt-1 block w-full border rounded-md p-2"
-                  >
-                    <option value="">Pilih Konselor</option>
-                    {counselors.map((counselor) => (
-                      <option key={counselor.id} value={counselor.id}>
-                        {counselor.name}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.counselor_id && <p className="text-red-500 text-sm">{errors.counselor_id.message}</p>}
-                </div>
-                <div>
-                  <Label htmlFor="description">Deskripsi</Label>
-                  <Input
-                    id="description"
-                    {...register("description")}
-                    className="mt-1"
-                  />
-                  {errors.description && <p className="text-red-500 text-sm">{errors.description.message}</p>}
-                </div>
-                <DialogFooter>
-                  <Button type="submit" className="w-full">Tambah Jadwal</Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
-      </div>
-
-      {/* Tab Navigation */}
-      <div className="flex space-x-4">
-        <Button
-          variant={activeTab === 'Pending' ? 'primary' : 'outline'}
-          onClick={() => setActiveTab('Pending')}
-        >
-          Pending
-        </Button>
-        <Button
-          variant={activeTab === 'Accepted' ? 'primary' : 'outline'}
-          onClick={() => setActiveTab('Accepted')}
-        >
-          Accepted
-        </Button>
-        <Button // ADDED: Finished Tab
-          variant={activeTab === 'Finished' ? 'primary' : 'outline'}
-          onClick={() => setActiveTab('Finished')}
-        >
-          Finished
+    <div className="container mx-auto px-4 py-6 max-w-6xl">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+        <h1 className="text-3xl font-bold tracking-tight">Jadwal Konsultasi</h1>
+        <Button onClick={() => setIsAddScheduleOpen(true)} className="mt-4 md:mt-0" size={isMobile ? "sm" : "default"}>
+          <Plus className="h-4 w-4 mr-2" /> Tambah Jadwal
         </Button>
       </div>
 
-      {/* List Jadwal Berdasarkan Tab */}
-      {activeTab === 'Pending' && (
-        <div className="space-y-6">
-          <h3 className="text-2xl font-semibold">Jadwal Pending</h3>
-          <ScrollArea className="h-[400px] rounded-md border p-4">
-            <InfiniteScroll
-              dataLength={pendingSchedules.length}
-              next={() => setSizePending(sizePending + 1)}
-              hasMore={!isReachingEndPending}
-              loader={
-                <div className="flex justify-center items-center my-4">
-                  <svg className="animate-spin h-6 w-6 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                  </svg>
-                </div>
-              }
-              endMessage={
-                <p className="text-center text-gray-500 mt-4">
-                  <b>Anda telah melihat semua jadwal Pending.</b>
-                </p>
-              }
-            >
-              {isLoadingInitialPending && <p className="text-center text-gray-500">Memuat jadwal...</p>}
-              {pendingSchedules.length > 0 ? (
-                pendingSchedules.map((schedule) => (
-                  <div key={schedule.id} className="mb-4 p-4 border rounded-lg shadow-md hover:shadow-lg transition-shadow bg-white">
-                    <h3 className="font-semibold text-lg flex items-center">
-                      <CalendarIcon className="mr-2 h-5 w-5 text-blue-500" /> {schedule.title}
-                    </h3>
-                    <div className="flex items-center text-sm text-gray-500 mt-1">
-                      <Clock className="mr-1 h-4 w-4" />
-                      {format(schedule.date, "dd MMMM yyyy")} - {schedule.time}
-                    </div>
-                    <div className="flex items-center text-sm text-gray-500 mt-1">
-                      <MapPin className="mr-1 h-4 w-4" />
-                      {schedule.address}
-                    </div>
-                    <p className="mt-2 text-gray-700">{schedule.description}</p>
-                    {schedule.counselor && (
-                      <div className="flex items-center text-sm text-gray-600 mt-2">
-                        <User className="mr-1 h-4 w-4" />
-                        <strong>Konselor:</strong> {schedule.counselor.name}
-                      </div>
-                    )}
-                    <div className="flex items-center text-sm text-gray-600 mt-1">
-                      <span className="font-semibold">Status:</span> {schedule.status}
-                    </div>
-                    <div className="flex items-center text-sm text-gray-600 mt-1">
-                      <span className="font-semibold">Sudah Dikonfirmasi:</span> {schedule.confirmed ? 'Ya' : 'Tidak'}
-                    </div>
-                    <div className="flex flex-wrap gap-2 mt-4">
-                      {/* Tombol Konfirmasi dan Hapus hanya muncul jika confirmed adalah false */}
-                      {!schedule.confirmed && (
-                        <>
-                          <Button
-                            variant="default"
-                            onClick={() => handleConfirmSchedule(schedule)}
-                            className="flex items-center"
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Calendar and Info Section */}
+        <Card className="lg:col-span-1">
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <CalendarIcon className="h-5 w-5 mr-2" /> Kalender
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Calendar mode="single" selected={date} onSelect={setDate} className="rounded-md border w-full" />
+            <div className="mt-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
+                <span className="text-sm">Pending: {pendingSchedules.length}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-green-400"></div>
+                <span className="text-sm">Accepted: {acceptedSchedules.length}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-purple-400"></div>
+                <span className="text-sm">Finished: {finishedSchedules.length}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Schedules Section */}
+        <div className="lg:col-span-2">
+          <Tabs defaultValue="Pending" value={activeTab} onValueChange={(value) => setActiveTab(value as any)}>
+            <TabsList className="grid grid-cols-3 mb-4">
+              <TabsTrigger value="Pending" className="flex items-center gap-2">
+                <Clock3 className="h-4 w-4" /> Pending
+              </TabsTrigger>
+              <TabsTrigger value="Accepted" className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4" /> Accepted
+              </TabsTrigger>
+              <TabsTrigger value="Finished" className="flex items-center gap-2">
+                <Star className="h-4 w-4" /> Finished
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="Pending" className="mt-0">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle>Jadwal Pending</CardTitle>
+                  <CardDescription>Jadwal yang belum dikonfirmasi oleh admin</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-[500px] pr-4">
+                    <InfiniteScroll
+                      dataLength={pendingSchedules.length}
+                      next={() => setSizePending(sizePending + 1)}
+                      hasMore={!isReachingEndPending}
+                      loader={
+                        <div className="flex justify-center items-center my-4">
+                          <svg
+                            className="animate-spin h-6 w-6 text-gray-500"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
                           >
-                            Konfirmasi
-                          </Button>
-                          <Button variant="destructive" onClick={() => handleDeleteSchedule(schedule.id)}>
-                            <Trash className="mr-1 h-4 w-4" /> Hapus
-                          </Button>
-                        </>
-                      )}
-                      {/* Tombol Reschedule dan Hapus muncul jika confirmed adalah true */}
-                      {schedule.confirmed && (
-                        <>
-                          <Button
-                            variant="secondary"
-                            onClick={() => {
-                              setRescheduleData({ id: schedule.id, date: schedule.date, time: schedule.time })
-                              setIsRescheduleOpen(true)
-                            }}
-                            className="flex items-center"
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            ></circle>
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                            ></path>
+                          </svg>
+                        </div>
+                      }
+                      scrollableTarget="scrollableDiv"
+                    >
+                      {isLoadingInitialPending ? (
+                        <div className="flex justify-center py-8">
+                          <svg
+                            className="animate-spin h-8 w-8 text-gray-500"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
                           >
-                            <Edit className="mr-1 h-4 w-4" /> Reschedule
-                          </Button>
-                          <Button variant="destructive" onClick={() => handleCancelSchedule(schedule.id)}>
-                            <Trash className="mr-1 h-4 w-4" /> Batalkan
-                          </Button>
-                        </>
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            ></circle>
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                            ></path>
+                          </svg>
+                        </div>
+                      ) : pendingSchedules.length > 0 ? (
+                        pendingSchedules.map(renderScheduleCard)
+                      ) : (
+                        <div className="text-center py-8 text-muted-foreground">Belum ada jadwal Pending</div>
                       )}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                !isLoadingInitialPending && <p className="text-center text-gray-500">Belum ada jadwal Pending.</p>
-              )}
-            </InfiniteScroll>
-          </ScrollArea>
-        </div>
-      )}
+                    </InfiniteScroll>
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-      {activeTab === 'Accepted' && (
-        <div className="space-y-6">
-          <h3 className="text-2xl font-semibold">Jadwal Accepted</h3>
-          <ScrollArea className="h-[400px] rounded-md border p-4">
-            <InfiniteScroll
-              dataLength={acceptedSchedules.length}
-              next={() => setSizeAccepted(sizeAccepted + 1)}
-              hasMore={!isReachingEndAccepted}
-              loader={
-                <div className="flex justify-center items-center my-4">
-                  <svg className="animate-spin h-6 w-6 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                  </svg>
-                </div>
-              }
-              endMessage={
-                <p className="text-center text-gray-500 mt-4">
-                  <b>Anda telah melihat semua jadwal Accepted.</b>
-                </p>
-              }
-            >
-              {isLoadingInitialAccepted && <p className="text-center text-gray-500">Memuat jadwal...</p>}
-              {acceptedSchedules.length > 0 ? (
-                acceptedSchedules.map((schedule) => (
-                  <div key={schedule.id} className="mb-4 p-4 border rounded-lg shadow-md hover:shadow-lg transition-shadow bg-white">
-                    <h3 className="font-semibold text-lg flex items-center">
-                      <CalendarIcon className="mr-2 h-5 w-5 text-green-500" /> {schedule.title}
-                    </h3>
-                    <div className="flex items-center text-sm text-gray-500 mt-1">
-                      <Clock className="mr-1 h-4 w-4" />
-                      {format(schedule.date, "dd MMMM yyyy")} - {schedule.time}
-                    </div>
-                    <div className="flex items-center text-sm text-gray-500 mt-1">
-                      <MapPin className="mr-1 h-4 w-4" />
-                      {schedule.address}
-                    </div>
-                    <p className="mt-2 text-gray-700">{schedule.description}</p>
-                    {schedule.counselor && (
-                      <div className="flex items-center text-sm text-gray-600 mt-2">
-                        <User className="mr-1 h-4 w-4" />
-                        <strong>Konselor:</strong> {schedule.counselor.name}
-                      </div>
-                    )}
-                    <div className="flex items-center text-sm text-gray-600 mt-1">
-                      <span className="font-semibold">Status:</span> {schedule.status}
-                    </div>
-                    {schedule.rating && (
-                      <div className="flex items-center text-sm text-gray-600 mt-1">
-                        <Star className="mr-1 h-4 w-4 text-yellow-400" />
-                        <span className="font-semibold">Rating:</span> {schedule.rating.stars} / 5
-                      </div>
-                    )}
-                    <div className="flex flex-wrap gap-2 mt-4">
-                      {/* Tombol untuk membatalkan jadwal accepted */}
-                      <Button variant="destructive" onClick={() => handleDeleteSchedule(schedule.id)}>
-                        <Trash className="mr-1 h-4 w-4" /> Hapus
-                      </Button>
-                      {/* Tombol untuk memberikan rating hanya jika status selesai dan belum memberi rating */}
-                      {schedule.status === 'Finished' && !schedule.rating && (
-                        <Button
-                          variant="default"
-                          onClick={() => setRatingData({ scheduleId: schedule.id, open: true })}
-                          className="flex items-center"
-                        >
-                          Beri Rating
-                        </Button>
+            <TabsContent value="Accepted" className="mt-0">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle>Jadwal Accepted</CardTitle>
+                  <CardDescription>Jadwal yang telah dikonfirmasi oleh admin</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-[500px] pr-4">
+                    <InfiniteScroll
+                      dataLength={acceptedSchedules.length}
+                      next={() => setSizeAccepted(sizeAccepted + 1)}
+                      hasMore={!isReachingEndAccepted}
+                      loader={
+                        <div className="flex justify-center items-center my-4">
+                          <svg
+                            className="animate-spin h-6 w-6 text-gray-500"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            ></circle>
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                            ></path>
+                          </svg>
+                        </div>
+                      }
+                      scrollableTarget="scrollableDiv"
+                    >
+                      {isLoadingInitialAccepted ? (
+                        <div className="flex justify-center py-8">
+                          <svg
+                            className="animate-spin h-8 w-8 text-gray-500"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            ></circle>
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                            ></path>
+                          </svg>
+                        </div>
+                      ) : acceptedSchedules.length > 0 ? (
+                        acceptedSchedules.map(renderScheduleCard)
+                      ) : (
+                        <div className="text-center py-8 text-muted-foreground">Belum ada jadwal Accepted</div>
                       )}
-                      {/* Tombol Reschedule */}
-                      {schedule.confirmed && (
-                        <Button
-                          variant="secondary"
-                          onClick={() => {
-                            setRescheduleData({ id: schedule.id, date: schedule.date, time: schedule.time })
-                            setIsRescheduleOpen(true)
-                          }}
-                          className="flex items-center"
-                        >
-                          <Edit className="mr-1 h-4 w-4" /> Reschedule
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                !isLoadingInitialAccepted && <p className="text-center text-gray-500">Belum ada jadwal Accepted.</p>
-              )}
-            </InfiniteScroll>
-          </ScrollArea>
-        </div>
-      )}
+                    </InfiniteScroll>
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-      {/* ADDED: Finished Tab */}
-      {activeTab === 'Finished' && (
-        <div className="space-y-6">
-          <h3 className="text-2xl font-semibold">Jadwal Finished</h3>
-          <ScrollArea className="h-[400px] rounded-md border p-4">
-            <InfiniteScroll
-              dataLength={finishedSchedules.length}
-              next={() => setSizeFinished(sizeFinished + 1)}
-              hasMore={!isReachingEndFinished}
-              loader={
-                <div className="flex justify-center items-center my-4">
-                  <svg className="animate-spin h-6 w-6 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                  </svg>
-                </div>
-              }
-              endMessage={
-                <p className="text-center text-gray-500 mt-4">
-                  <b>Anda telah melihat semua jadwal Finished.</b>
-                </p>
-              }
-            >
-              {isLoadingInitialFinished && <p className="text-center text-gray-500">Memuat jadwal...</p>}
-              {finishedSchedules.length > 0 ? (
-                finishedSchedules.map((schedule) => (
-                  <div key={schedule.id} className="mb-4 p-4 border rounded-lg shadow-md hover:shadow-lg transition-shadow bg-white">
-                    <h3 className="font-semibold text-lg flex items-center">
-                      <CalendarIcon className="mr-2 h-5 w-5 text-purple-500" /> {schedule.title}
-                    </h3>
-                    <div className="flex items-center text-sm text-gray-500 mt-1">
-                      <Clock className="mr-1 h-4 w-4" />
-                      {format(schedule.date, "dd MMMM yyyy")} - {schedule.time}
-                    </div>
-                    <div className="flex items-center text-sm text-gray-500 mt-1">
-                      <MapPin className="mr-1 h-4 w-4" />
-                      {schedule.address}
-                    </div>
-                    <p className="mt-2 text-gray-700">{schedule.description}</p>
-                    {schedule.counselor && (
-                      <div className="flex items-center text-sm text-gray-600 mt-2">
-                        <User className="mr-1 h-4 w-4" />
-                        <strong>Konselor:</strong> {schedule.counselor.name}
-                      </div>
-                    )}
-                    <div className="flex items-center text-sm text-gray-600 mt-1">
-                      <span className="font-semibold">Status:</span> {schedule.status}
-                    </div>
-                    {schedule.rating && (
-                      <div className="flex items-center text-sm text-gray-600 mt-1">
-                        <Star className="mr-1 h-4 w-4 text-yellow-400" />
-                        <span className="font-semibold">Rating:</span> {schedule.rating.stars} / 5
-                      </div>
-                    )}
-                    <div className="flex flex-wrap gap-2 mt-4">
-                      {/* Tombol untuk memberikan rating */}
-                      {!schedule.rating && (
-                        <Button
-                          variant="default"
-                          onClick={() => setRatingData({ scheduleId: schedule.id, open: true })}
-                          className="flex items-center"
-                        >
-                          Beri Rating
-                        </Button>
+            <TabsContent value="Finished" className="mt-0">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle>Jadwal Finished</CardTitle>
+                  <CardDescription>Jadwal yang telah selesai</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-[500px] pr-4">
+                    <InfiniteScroll
+                      dataLength={finishedSchedules.length}
+                      next={() => setSizeFinished(sizeFinished + 1)}
+                      hasMore={!isReachingEndFinished}
+                      loader={
+                        <div className="flex justify-center items-center my-4">
+                          <svg
+                            className="animate-spin h-6 w-6 text-gray-500"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            ></circle>
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                            ></path>
+                          </svg>
+                        </div>
+                      }
+                      scrollableTarget="scrollableDiv"
+                    >
+                      {isLoadingInitialFinished ? (
+                        <div className="flex justify-center py-8">
+                          <svg
+                            className="animate-spin h-8 w-8 text-gray-500"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            ></circle>
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                            ></path>
+                          </svg>
+                        </div>
+                      ) : finishedSchedules.length > 0 ? (
+                        finishedSchedules.map(renderScheduleCard)
+                      ) : (
+                        <div className="text-center py-8 text-muted-foreground">Belum ada jadwal Finished</div>
                       )}
-                      {/* Tombol Hapus */}
-                      <Button variant="destructive" onClick={() => handleDeleteSchedule(schedule.id)}>
-                        <Trash className="mr-1 h-4 w-4" /> Hapus
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                !isLoadingInitialFinished && <p className="text-center text-gray-500">Belum ada jadwal Finished.</p>
-              )}
-            </InfiniteScroll>
-          </ScrollArea>
+                    </InfiniteScroll>
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </div>
-      )}
+      </div>
 
-      {/* Dialog untuk Reschedule */}
+      {/* Add Schedule Dialog */}
+      <Dialog open={isAddScheduleOpen} onOpenChange={setIsAddScheduleOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Tambah Jadwal Baru</DialogTitle>
+            <DialogDescription>Masukkan detail jadwal konsultasi baru di sini.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="title">Judul</Label>
+                <Input id="title" placeholder="Masukkan judul jadwal" {...register("title")} />
+                {errors.title && <p className="text-sm text-red-500">{errors.title.message}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="time">Waktu</Label>
+                <Input id="time" type="time" {...register("time")} />
+                {errors.time && <p className="text-sm text-red-500">{errors.time.message}</p>}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="address">Alamat</Label>
+              <Input id="address" placeholder="Masukkan alamat konsultasi" {...register("address")} />
+              {errors.address && <p className="text-sm text-red-500">{errors.address.message}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="counselor">Konselor</Label>
+              <select id="counselor" {...register("counselor_id")} className="w-full border rounded-md p-2">
+                <option value="">Pilih Konselor</option>
+                {counselors.map((counselor) => (
+                  <option key={counselor.id} value={counselor.id}>
+                    {counselor.name}
+                  </option>
+                ))}
+              </select>
+              {errors.counselor_id && <p className="text-sm text-red-500">{errors.counselor_id.message}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="description">Deskripsi</Label>
+              <Input id="description" placeholder="Masukkan deskripsi jadwal" {...register("description")} />
+              {errors.description && <p className="text-sm text-red-500">{errors.description.message}</p>}
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsAddScheduleOpen(false)}>
+                Batal
+              </Button>
+              <Button type="submit">Tambah Jadwal</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reschedule Dialog */}
       <Dialog open={isRescheduleOpen} onOpenChange={setIsRescheduleOpen}>
         {rescheduleData && (
-          <DialogContent className="sm:max-w-[425px] w-full">
+          <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
               <DialogTitle>Reschedule Jadwal</DialogTitle>
               <DialogDescription>Masukkan tanggal dan waktu baru untuk jadwal ini.</DialogDescription>
             </DialogHeader>
             <form className="space-y-4">
-              <div className="flex items-center">
-                <CalendarIcon className="mr-2 h-5 w-5 text-blue-500" />
-                <Label htmlFor="newDate">Tanggal Baru</Label>
+              <div className="space-y-2">
+                <Label htmlFor="newDate" className="flex items-center gap-2">
+                  <CalendarIcon className="h-4 w-4" /> Tanggal Baru
+                </Label>
+                <Input
+                  id="newDate"
+                  type="date"
+                  value={format(rescheduleData.date, "yyyy-MM-dd")}
+                  onChange={(e) =>
+                    setRescheduleData({
+                      ...rescheduleData,
+                      date: new Date(e.target.value),
+                    })
+                  }
+                />
               </div>
-              <Input
-                id="newDate"
-                type="date"
-                value={format(rescheduleData.date, "yyyy-MM-dd")}
-                onChange={(e) =>
-                  setRescheduleData({
-                    ...rescheduleData,
-                    date: new Date(e.target.value),
-                  })
-                }
-                className="mt-1"
-              />
-              <div className="flex items-center">
-                <Clock className="mr-2 h-5 w-5 text-blue-500" />
-                <Label htmlFor="newTime">Waktu Baru</Label>
+              <div className="space-y-2">
+                <Label htmlFor="newTime" className="flex items-center gap-2">
+                  <Clock className="h-4 w-4" /> Waktu Baru
+                </Label>
+                <Input
+                  id="newTime"
+                  type="time"
+                  value={rescheduleData.time}
+                  onChange={(e) =>
+                    setRescheduleData({
+                      ...rescheduleData,
+                      time: e.target.value,
+                    })
+                  }
+                />
               </div>
-              <Input
-                id="newTime"
-                type="time"
-                value={rescheduleData.time}
-                onChange={(e) =>
-                  setRescheduleData({
-                    ...rescheduleData,
-                    time: e.target.value,
-                  })
-                }
-                className="mt-1"
-              />
               <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIsRescheduleOpen(false)
+                    setRescheduleData(null)
+                  }}
+                >
+                  Batal
+                </Button>
                 <Button
                   type="button"
                   onClick={() => {
@@ -1209,7 +1247,6 @@ Terima kasih telah menggunakan layanan kami.
                       setRescheduleData(null)
                     }
                   }}
-                  className="w-full"
                 >
                   Simpan Perubahan
                 </Button>
@@ -1219,53 +1256,59 @@ Terima kasih telah menggunakan layanan kami.
         )}
       </Dialog>
 
-      {/* Dialog untuk Rating */}
-      <Dialog open={ratingData.open} onOpenChange={(open) => {
-        if (!open) {
-          setRatingData({ scheduleId: 0, open: false })
-          resetRating()
-        }
-      }}>
+      {/* Rating Dialog */}
+      <Dialog
+        open={ratingData.open}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRatingData({ scheduleId: 0, open: false })
+            resetRating()
+          }
+        }}
+      >
         {ratingData.open && (
-          <DialogContent className="sm:max-w-[425px] w-full">
+          <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
               <DialogTitle>Beri Rating</DialogTitle>
               <DialogDescription>Berikan rating dan deskripsi konsultasi Anda.</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmitRating(onSubmitRating)} className="space-y-4">
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="stars">Rating</Label>
                 <Controller
                   name="stars"
                   control={control}
-                  defaultValue={0.5} // Atur defaultValue ke 0.5
+                  defaultValue={0.5}
                   render={({ field }) => (
-                    <div className="flex items-center mt-1">
+                    <div className="flex items-center">
                       <ReactStars
                         count={5}
                         onChange={(newRating: number) => field.onChange(newRating)}
                         size={30}
                         half={true}
                         value={field.value}
-                        color2={'#ffd700'}
+                        color2={"#ffd700"}
                       />
                       <span className="ml-2 text-sm text-gray-600">{field.value} / 5</span>
                     </div>
                   )}
                 />
-                {errorsRating.stars && <p className="text-red-500 text-sm">{errorsRating.stars.message}</p>}
+                {errorsRating.stars && <p className="text-sm text-red-500">{errorsRating.stars.message}</p>}
               </div>
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="description">Deskripsi</Label>
                 <Input
                   id="description"
+                  placeholder="Berikan komentar tentang konsultasi Anda"
                   {...registerRating("description")}
-                  className="mt-1"
                 />
-                {errorsRating.description && <p className="text-red-500 text-sm">{errorsRating.description.message}</p>}
+                {errorsRating.description && <p className="text-sm text-red-500">{errorsRating.description.message}</p>}
               </div>
               <DialogFooter>
-                <Button type="submit" className="w-full">Kirim Rating</Button>
+                <Button type="button" variant="outline" onClick={() => setRatingData({ scheduleId: 0, open: false })}>
+                  Batal
+                </Button>
+                <Button type="submit">Kirim Rating</Button>
               </DialogFooter>
             </form>
           </DialogContent>
