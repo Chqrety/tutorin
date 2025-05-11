@@ -6,27 +6,38 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import bcrypt from "bcryptjs"
 import { useRouter } from "next/navigation"
+import { motion } from "framer-motion"
 
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/components/ui/use-toast"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import {
+  User,
+  Shield,
+  Edit2,
+  Save,
+  X,
+  Upload,
+  Home,
+  MessageCircle,
+  CalendarPlus2Icon as CalendarIcon2,
+  Settings,
+  Plus,
+  School,
+  Mail,
+  BookOpen,
+  Calendar,
+  Key,
+  Lock,
+} from "lucide-react"
+import LoadingPage from "@/app/components/LoadingPage"
 
-// --------------------
 // Skema Validasi (Zod)
-// --------------------
-// Kita tambahkan field untuk fullName, university, major, semester.
 const profileSchema = z
   .object({
     fullName: z.string().min(2, "Nama lengkap harus diisi"),
@@ -37,9 +48,7 @@ const profileSchema = z
 
     currentPassword: z.string().min(1, "Password saat ini harus diisi"),
     newPassword: z.string().min(8, "Password baru minimal 8 karakter"),
-    confirmPassword: z
-      .string()
-      .min(8, "Konfirmasi password minimal 8 karakter"),
+    confirmPassword: z.string().min(8, "Konfirmasi password minimal 8 karakter"),
 
     // Field untuk file avatar (opsional).
     avatarFile: z.any().optional(),
@@ -59,9 +68,23 @@ export default function ProfileContent() {
   const [isEditing, setIsEditing] = useState(false)
   // Menyimpan URL avatar (profil) dari DB
   const [avatarUrl, setAvatarUrl] = useState<string>("")
+  // State untuk loading
+  const [isLoading, setIsLoading] = useState(true)
+  // State untuk submitting
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  // State untuk active tab
+  const [activeTab, setActiveTab] = useState("info")
+  // State untuk mobile navigation
+  const [activeBottomTab, setActiveBottomTab] = useState("settings")
+  const [isClient, setIsClient] = useState(false)
 
   // Ambil userId dari session
   const [userId, setUserId] = useState<string | null>(null)
+
+  // Set isClient to true when component mounts
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
   // Cek sessionStorage untuk userSession
   useEffect(() => {
@@ -112,13 +135,12 @@ export default function ProfileContent() {
     if (!userId) return
 
     const fetchData = async () => {
+      setIsLoading(true)
       try {
         // 1. Ambil data user
         const { data: userData, error: userError } = await supabase
           .from("users")
-          .select(
-            "id, email, encrypted_password, full_name, university, major, semester",
-          )
+          .select("id, email, encrypted_password, full_name, university, major, semester")
           .eq("id", userId)
           .single()
 
@@ -152,6 +174,8 @@ export default function ProfileContent() {
         }
       } catch (err) {
         console.error("Unexpected error:", err)
+      } finally {
+        setIsLoading(false)
       }
     }
 
@@ -165,21 +189,17 @@ export default function ProfileContent() {
       const filePath = `avatars/${userId}-${Date.now()}`
 
       // Upload ke bucket "avatars"
-      const { data, error } = await supabase.storage
-        .from("avatars")
-        .upload(filePath, file, {
-          cacheControl: "3600",
-          upsert: false,
-        })
+      const { data, error } = await supabase.storage.from("avatars").upload(filePath, file, {
+        cacheControl: "3600",
+        upsert: false,
+      })
 
       if (error) {
         throw error
       }
 
       // Dapatkan public URL
-      const { data: urlData } = supabase.storage
-        .from("avatars")
-        .getPublicUrl(filePath)
+      const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath)
       const publicUrl = urlData?.publicUrl
 
       return publicUrl
@@ -197,6 +217,8 @@ export default function ProfileContent() {
       return
     }
 
+    setIsSubmitting(true)
+
     try {
       // 1. Ambil encrypted_password dari DB (untuk cek currentPassword)
       const { data: userPassData, error: userPassError } = await supabase
@@ -206,17 +228,24 @@ export default function ProfileContent() {
         .single()
 
       if (userPassError || !userPassData) {
-        toast({ title: "Error", description: "Gagal memeriksa password lama" })
+        toast({
+          title: "Error",
+          description: "Gagal memeriksa password lama",
+          variant: "destructive",
+        })
+        setIsSubmitting(false)
         return
       }
 
       // 2. Bandingkan currentPassword (plaintext) dengan encrypted_password (hash)
-      const match = await bcrypt.compare(
-        formData.currentPassword,
-        userPassData.encrypted_password,
-      )
+      const match = await bcrypt.compare(formData.currentPassword, userPassData.encrypted_password)
       if (!match) {
-        toast({ title: "Error", description: "Password saat ini tidak cocok" })
+        toast({
+          title: "Error",
+          description: "Password saat ini tidak cocok",
+          variant: "destructive",
+        })
+        setIsSubmitting(false)
         return
       }
 
@@ -242,14 +271,16 @@ export default function ProfileContent() {
         toast({
           title: "Error",
           description: "Gagal memperbarui data pengguna",
+          variant: "destructive",
         })
+        setIsSubmitting(false)
         return
       }
 
       // 5. Jika ada file avatar baru, upload ke bucket
       let newAvatarUrl: string | null = null
-      if (avatarFile && avatarFile instanceof File) {
-        newAvatarUrl = await uploadAvatar(avatarFile)
+      if (avatarFile && avatarFile[0] instanceof File) {
+        newAvatarUrl = await uploadAvatar(avatarFile[0])
       }
 
       // 6. Jika berhasil upload, update tabel profiles
@@ -261,7 +292,12 @@ export default function ProfileContent() {
 
         if (profileUpdateError) {
           console.error("Error updating avatar_url:", profileUpdateError)
-          toast({ title: "Error", description: "Gagal memperbarui avatar" })
+          toast({
+            title: "Error",
+            description: "Gagal memperbarui avatar",
+            variant: "destructive",
+          })
+          setIsSubmitting(false)
           return
         }
 
@@ -281,211 +317,348 @@ export default function ProfileContent() {
       toast({
         title: "Error",
         description: "Terjadi kesalahan saat memperbarui profil",
+        variant: "destructive",
       })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleTabClick = (tab: string) => {
+    setActiveBottomTab(tab)
+    if (isClient) {
+      // Check that this only runs on client
+      switch (tab) {
+        case "home":
+          router.push("/dashboard") // Replace with appropriate route
+          break
+        case "konsultasi":
+          router.push("/dashboard/konsultasi") // Replace with appropriate route
+          break
+        case "schedule":
+          router.push("/dashboard/jadwal") // Replace with appropriate route
+          break
+        case "settings":
+          // Already on settings page
+          break
+        default:
+          break
+      }
     }
   }
 
   // Jika masih cek session (userId == null), tampilkan loading
   if (userId === null) {
-    return <div>Loading...</div>
+    return <LoadingPage />
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center space-x-4">
-          <Avatar className="w-20 h-20">
-            {avatarUrl ? (
-              <AvatarImage src={avatarUrl} alt="Profile picture" />
-            ) : (
-              <AvatarFallback>?</AvatarFallback>
-            )}
-          </Avatar>
-          <div>
-            <CardTitle>Profil Anda</CardTitle>
-            <CardDescription>
-              Kelola data profil, email, dan password
-            </CardDescription>
-          </div>
-        </div>
-      </CardHeader>
-
-      <CardContent>
-        <Tabs defaultValue="info">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="info">Informasi Profil</TabsTrigger>
-            <TabsTrigger value="security">Keamanan</TabsTrigger>
-          </TabsList>
-
-          {/* TAB INFORMASI */}
-          <TabsContent value="info">
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-4">
-              <div>
-                <Label htmlFor="fullName">Nama Lengkap</Label>
-                <Input
-                  id="fullName"
-                  {...register("fullName")}
-                  disabled={!isEditing}
-                />
-                {errors.fullName && (
-                  <p className="text-red-500 text-sm mt-1">
-                    {errors.fullName.message}
-                  </p>
-                )}
-              </div>
-              <div>
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  {...register("email")}
-                  disabled={!isEditing}
-                />
-                {errors.email && (
-                  <p className="text-red-500 text-sm mt-1">
-                    {errors.email.message}
-                  </p>
-                )}
-              </div>
-              <div>
-                <Label htmlFor="university">Universitas</Label>
-                <Input
-                  id="university"
-                  {...register("university")}
-                  disabled={!isEditing}
-                />
-                {errors.university && (
-                  <p className="text-red-500 text-sm mt-1">
-                    {errors.university.message}
-                  </p>
-                )}
-              </div>
-              <div>
-                <Label htmlFor="major">Jurusan</Label>
-                <Input
-                  id="major"
-                  {...register("major")}
-                  disabled={!isEditing}
-                />
-                {errors.major && (
-                  <p className="text-red-500 text-sm mt-1">
-                    {errors.major.message}
-                  </p>
-                )}
-              </div>
-              <div>
-                <Label htmlFor="semester">Semester</Label>
-                <Input
-                  id="semester"
-                  {...register("semester")}
-                  disabled={!isEditing}
-                />
-                {errors.semester && (
-                  <p className="text-red-500 text-sm mt-1">
-                    {errors.semester.message}
-                  </p>
-                )}
-              </div>
-              <div>
-                <Label htmlFor="avatarFile">Avatar</Label>
-                <Input
-                  id="avatarFile"
-                  type="file"
-                  {...register("avatarFile")}
-                  disabled={!isEditing}
-                />
-                {errors.avatarFile && (
-                  <p className="text-red-500 text-sm mt-1">
-                    {String(errors.avatarFile.message)}
-                  </p>
-                )}
-              </div>
-
-              {isEditing ? (
-                <div className="flex justify-end space-x-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsEditing(false)}
-                  >
-                    Batal
-                  </Button>
-                  <Button type="submit">Simpan Perubahan</Button>
+    <div className="min-h-screen bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800 text-white py-4 px-3 sm:py-6 sm:px-4 pb-24 md:pb-6">
+      <div className="container mx-auto max-w-4xl">
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+          <Card className="backdrop-blur-md bg-white/10 border border-white/20">
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row items-center gap-6">
+                <div className="relative group">
+                  <Avatar className="w-24 h-24 border-4 border-blue-400/30 bg-blue-500/20">
+                    {avatarUrl ? (
+                      <AvatarImage src={avatarUrl || "/placeholder.svg"} alt="Profile picture" />
+                    ) : (
+                      <AvatarFallback className="bg-blue-500/30 text-white text-xl">
+                        {watch("fullName")?.charAt(0) || "?"}
+                      </AvatarFallback>
+                    )}
+                  </Avatar>
+                  {isEditing && (
+                    <label
+                      htmlFor="avatarFile"
+                      className="absolute inset-0 flex items-center justify-center bg-blue-900/70 rounded-full opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity"
+                    >
+                      <Upload className="h-8 w-8 text-white" />
+                      <input id="avatarFile" type="file" className="sr-only" {...register("avatarFile")} />
+                    </label>
+                  )}
                 </div>
-              ) : (
-                <Button type="button" onClick={() => setIsEditing(true)}>
-                  Edit Profil
-                </Button>
-              )}
-            </form>
-          </TabsContent>
-
-          {/* TAB KEAMANAN */}
-          <TabsContent value="security">
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-4">
-              <div>
-                <Label htmlFor="currentPassword">Password Saat Ini</Label>
-                <Input
-                  id="currentPassword"
-                  type="password"
-                  {...register("currentPassword")}
-                  disabled={!isEditing}
-                />
-                {errors.currentPassword && (
-                  <p className="text-red-500 text-sm mt-1">
-                    {errors.currentPassword.message}
-                  </p>
-                )}
+                <div className="text-center sm:text-left">
+                  <CardTitle className="text-white text-2xl mb-1">
+                    {isLoading ? "Loading..." : watch("fullName") || "Your Profile"}
+                  </CardTitle>
+                  <CardDescription className="text-blue-200">Kelola data profil, email, dan password</CardDescription>
+                </div>
+                <div className="sm:ml-auto">
+                  {!isEditing ? (
+                    <Button
+                      onClick={() => setIsEditing(true)}
+                      className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border border-blue-400/30"
+                    >
+                      <Edit2 className="h-4 w-4 mr-2" />
+                      Edit Profil
+                    </Button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsEditing(false)}
+                        className="bg-white/10 border-white/20 text-blue-100 hover:bg-white/20 hover:text-white"
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Batal
+                      </Button>
+                      <Button
+                        onClick={handleSubmit(onSubmit)}
+                        disabled={isSubmitting}
+                        className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border border-blue-400/30"
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <div className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin mr-2"></div>
+                            Menyimpan...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="h-4 w-4 mr-2" />
+                            Simpan
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div>
-                <Label htmlFor="newPassword">Password Baru</Label>
-                <Input
-                  id="newPassword"
-                  type="password"
-                  {...register("newPassword")}
-                  disabled={!isEditing}
-                />
-                {errors.newPassword && (
-                  <p className="text-red-500 text-sm mt-1">
-                    {errors.newPassword.message}
-                  </p>
-                )}
-              </div>
-              <div>
-                <Label htmlFor="confirmPassword">
-                  Konfirmasi Password Baru
-                </Label>
-                <Input
-                  id="confirmPassword"
-                  type="password"
-                  {...register("confirmPassword")}
-                  disabled={!isEditing}
-                />
-                {errors.confirmPassword && (
-                  <p className="text-red-500 text-sm mt-1">
-                    {errors.confirmPassword.message}
-                  </p>
-                )}
-              </div>
+            </CardHeader>
 
-              {isEditing ? (
-                <Button type="submit">Ubah Password</Button>
-              ) : (
-                <p className="text-sm text-gray-500">
-                  Untuk mengubah password, klik &quot;Edit Profil&quot; terlebih
-                  dahulu.
-                </p>
-              )}
-            </form>
-          </TabsContent>
-        </Tabs>
-      </CardContent>
+            <CardContent>
+              <Tabs defaultValue="info" value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <TabsList className="grid w-full grid-cols-2 bg-white/10 p-1">
+                  <TabsTrigger value="info" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">
+                    <User className="h-4 w-4 mr-2" />
+                    Informasi Profil
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="security"
+                    className="data-[state=active]:bg-blue-500 data-[state=active]:text-white"
+                  >
+                    <Shield className="h-4 w-4 mr-2" />
+                    Keamanan
+                  </TabsTrigger>
+                </TabsList>
 
-      <CardFooter>
-        <p className="text-sm text-gray-500">
-          Terakhir diperbarui: {new Date().toLocaleDateString()}
-        </p>
-      </CardFooter>
-    </Card>
+                {/* TAB INFORMASI */}
+                <TabsContent value="info" className="mt-6">
+                  {isLoading ? (
+                    <div className="space-y-6">
+                      <div className="h-10 bg-white/5 animate-pulse rounded-md"></div>
+                      <div className="h-10 bg-white/5 animate-pulse rounded-md"></div>
+                      <div className="h-10 bg-white/5 animate-pulse rounded-md"></div>
+                      <div className="h-10 bg-white/5 animate-pulse rounded-md"></div>
+                      <div className="h-10 bg-white/5 animate-pulse rounded-md"></div>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="fullName" className="text-blue-100 flex items-center">
+                          <User className="h-4 w-4 mr-2 text-blue-300" />
+                          Nama Lengkap
+                        </Label>
+                        <Input
+                          id="fullName"
+                          {...register("fullName")}
+                          disabled={!isEditing}
+                          className="bg-white/5 border-white/20 text-white placeholder:text-blue-300/50 focus:border-blue-400 focus:ring-blue-400/20"
+                        />
+                        {errors.fullName && <p className="text-red-300 text-xs mt-1">{errors.fullName.message}</p>}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="email" className="text-blue-100 flex items-center">
+                          <Mail className="h-4 w-4 mr-2 text-blue-300" />
+                          Email
+                        </Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          {...register("email")}
+                          disabled={!isEditing}
+                          className="bg-white/5 border-white/20 text-white placeholder:text-blue-300/50 focus:border-blue-400 focus:ring-blue-400/20"
+                        />
+                        {errors.email && <p className="text-red-300 text-xs mt-1">{errors.email.message}</p>}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="university" className="text-blue-100 flex items-center">
+                          <School className="h-4 w-4 mr-2 text-blue-300" />
+                          Universitas
+                        </Label>
+                        <Input
+                          id="university"
+                          {...register("university")}
+                          disabled={!isEditing}
+                          className="bg-white/5 border-white/20 text-white placeholder:text-blue-300/50 focus:border-blue-400 focus:ring-blue-400/20"
+                        />
+                        {errors.university && <p className="text-red-300 text-xs mt-1">{errors.university.message}</p>}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="major" className="text-blue-100 flex items-center">
+                          <BookOpen className="h-4 w-4 mr-2 text-blue-300" />
+                          Jurusan
+                        </Label>
+                        <Input
+                          id="major"
+                          {...register("major")}
+                          disabled={!isEditing}
+                          className="bg-white/5 border-white/20 text-white placeholder:text-blue-300/50 focus:border-blue-400 focus:ring-blue-400/20"
+                        />
+                        {errors.major && <p className="text-red-300 text-xs mt-1">{errors.major.message}</p>}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="semester" className="text-blue-100 flex items-center">
+                          <Calendar className="h-4 w-4 mr-2 text-blue-300" />
+                          Semester
+                        </Label>
+                        <Input
+                          id="semester"
+                          {...register("semester")}
+                          disabled={!isEditing}
+                          className="bg-white/5 border-white/20 text-white placeholder:text-blue-300/50 focus:border-blue-400 focus:ring-blue-400/20"
+                        />
+                        {errors.semester && <p className="text-red-300 text-xs mt-1">{errors.semester.message}</p>}
+                      </div>
+                    </form>
+                  )}
+                </TabsContent>
+
+                {/* TAB KEAMANAN */}
+                <TabsContent value="security" className="mt-6">
+                  {isLoading ? (
+                    <div className="space-y-6">
+                      <div className="h-10 bg-white/5 animate-pulse rounded-md"></div>
+                      <div className="h-10 bg-white/5 animate-pulse rounded-md"></div>
+                      <div className="h-10 bg-white/5 animate-pulse rounded-md"></div>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="currentPassword" className="text-blue-100 flex items-center">
+                          <Key className="h-4 w-4 mr-2 text-blue-300" />
+                          Password Saat Ini
+                        </Label>
+                        <Input
+                          id="currentPassword"
+                          type="password"
+                          {...register("currentPassword")}
+                          disabled={!isEditing}
+                          className="bg-white/5 border-white/20 text-white placeholder:text-blue-300/50 focus:border-blue-400 focus:ring-blue-400/20"
+                        />
+                        {errors.currentPassword && (
+                          <p className="text-red-300 text-xs mt-1">{errors.currentPassword.message}</p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="newPassword" className="text-blue-100 flex items-center">
+                          <Lock className="h-4 w-4 mr-2 text-blue-300" />
+                          Password Baru
+                        </Label>
+                        <Input
+                          id="newPassword"
+                          type="password"
+                          {...register("newPassword")}
+                          disabled={!isEditing}
+                          className="bg-white/5 border-white/20 text-white placeholder:text-blue-300/50 focus:border-blue-400 focus:ring-blue-400/20"
+                        />
+                        {errors.newPassword && (
+                          <p className="text-red-300 text-xs mt-1">{errors.newPassword.message}</p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="confirmPassword" className="text-blue-100 flex items-center">
+                          <Lock className="h-4 w-4 mr-2 text-blue-300" />
+                          Konfirmasi Password Baru
+                        </Label>
+                        <Input
+                          id="confirmPassword"
+                          type="password"
+                          {...register("confirmPassword")}
+                          disabled={!isEditing}
+                          className="bg-white/5 border-white/20 text-white placeholder:text-blue-300/50 focus:border-blue-400 focus:ring-blue-400/20"
+                        />
+                        {errors.confirmPassword && (
+                          <p className="text-red-300 text-xs mt-1">{errors.confirmPassword.message}</p>
+                        )}
+                      </div>
+
+                      {!isEditing && (
+                        <div className="p-4 bg-blue-500/10 border border-blue-400/20 rounded-md">
+                          <p className="text-sm text-blue-100 flex items-center">
+                            <Shield className="h-4 w-4 mr-2 text-blue-300" />
+                            Untuk mengubah password, klik &quot;Edit Profil&quot; terlebih dahulu.
+                          </p>
+                        </div>
+                      )}
+                    </form>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+
+            <CardFooter className="border-t border-white/10 pt-4">
+              <p className="text-sm text-blue-200">Terakhir diperbarui: {new Date().toLocaleDateString()}</p>
+            </CardFooter>
+          </Card>
+        </motion.div>
+      </div>
+
+      {/* Bottom navigation bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-blue-900/90 backdrop-blur-md border-t border-white/10 z-50 md:hidden">
+        <div className="flex justify-around items-center py-2">
+          <Button
+            variant="ghost"
+            className={`flex flex-col items-center gap-1 h-auto py-2 ${
+              activeBottomTab === "home" ? "text-white" : "text-blue-200"
+            }`}
+            onClick={() => handleTabClick("home")}
+          >
+            <Home className="h-5 w-5" />
+            <span className="text-xs">Home</span>
+          </Button>
+          <Button
+            variant="ghost"
+            className={`flex flex-col items-center gap-1 h-auto py-2 ${
+              activeBottomTab === "konsultasi" ? "text-white" : "text-blue-200"
+            }`}
+            onClick={() => handleTabClick("konsultasi")}
+          >
+            <MessageCircle className="h-5 w-5" />
+            <span className="text-xs">Konsultasi</span>
+          </Button>
+          <div className="-mt-5">
+            <Button
+              className="h-14 w-14 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border border-blue-400/30 shadow-lg"
+              size="icon"
+              onClick={() => {}}
+            >
+              <Plus className="h-6 w-6" />
+            </Button>
+          </div>
+          <Button
+            variant="ghost"
+            className={`flex flex-col items-center gap-1 h-auto py-2 ${
+              activeBottomTab === "schedule" ? "text-white" : "text-blue-200"
+            }`}
+            onClick={() => handleTabClick("schedule")}
+          >
+            <CalendarIcon2 className="h-5 w-5" />
+            <span className="text-xs">Jadwal</span>
+          </Button>
+          <Button
+            variant="ghost"
+            className={`flex flex-col items-center gap-1 h-auto py-2 ${
+              activeBottomTab === "settings" ? "text-white" : "text-blue-200"
+            }`}
+            onClick={() => handleTabClick("settings")}
+          >
+            <Settings className="h-5 w-5" />
+            <span className="text-xs">Settings</span>
+          </Button>
+        </div>
+      </div>
+    </div>
   )
 }
