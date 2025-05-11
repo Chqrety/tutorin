@@ -6,7 +6,7 @@ import Hero from "./components/Hero"
 import Features from "./components/Features"
 import TutorialKonsultasi from "./components/TutorialKonsultasi"
 import About from "./components/About"
-import CommunityJoin from "./components/CommunityJoin"
+
 import Testimonial from "./components/Testimonial"
 import FAQ from "./components/FAQ"
 import CTA from "./components/CTA"
@@ -33,7 +33,7 @@ export default function Home() {
           <Features />
           <TutorialKonsultasi />
           <About />
-          <CommunityJoin />
+        
           <Testimonial />
           <FAQ />
           <CTA />

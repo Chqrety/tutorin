@@ -40,18 +40,18 @@ const Header = () => {
       <nav className="container mx-auto px-6">
         <div className="flex justify-between items-center">
           {/* Logo */}
-          <Link href="/" className="flex items-center group">
-            <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-2 rounded-lg mr-2 shadow-md group-hover:shadow-blue-500/20 transition-all duration-300">
-              <Droplets className="w-5 h-5 text-white" />
+            <Link href="/" className="flex items-center group">
+            <div className="transition-all duration-300">
+              <img src="/Tutorin.png" alt="Logo" className="w-20 h-20" />
             </div>
             <motion.span
-              className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-100 to-white"
+              className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-100 to-white"
               whileHover={{ scale: 1.03 }}
               transition={{ type: "spring", stiffness: 400, damping: 10 }}
             >
-              Doscom Konsultan
+              TUTORIN
             </motion.span>
-          </Link>
+            </Link>
 
           {/* Menu Desktop */}
           <div className="hidden md:flex items-center space-x-1">
