@@ -17,7 +17,7 @@ const CTA = () => {
         >
           <h2 className="text-4xl font-bold text-white mb-6">Siap Meraih Karir Impianmu?</h2>
           <p className="text-xl text-white mb-8">
-            Mulai perjalanan karirmu bersama Doscom dan wujudkan potensimu!
+            Mulai perjalanan karirmu bersama TUTORIN dan wujudkan potensimu!
           </p>
           <motion.button
             whileHover={{ scale: 1.05 }}
