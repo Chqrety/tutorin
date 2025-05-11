@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import jwt from "jsonwebtoken";
+import jwt, { JwtPayload } from "jsonwebtoken";
 import * as z from "zod";
+
+interface UserPayload extends JwtPayload {
+  userId: string;
+}
 
 // Validasi input menggunakan Zod
 const ratingSchema = z.object({
@@ -11,7 +15,7 @@ const ratingSchema = z.object({
   });
   
 // Middleware untuk mendapatkan user dari token
-async function getUserFromRequest(req: Request) {
+async function getUserFromRequest(req: Request): Promise<{ user: UserPayload | null; error: string | null }> {
   const authHeader = req.headers.get("Authorization");
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -20,11 +24,11 @@ async function getUserFromRequest(req: Request) {
 
   const token = authHeader.split(" ")[1];
   if (!token) {
-    return { user: null, error: "Token kosong." };
+    return { user: null, error: "Token tidak ditemukan" };
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "default-secret");
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "default-secret") as UserPayload;
     return { user: decoded, error: null };
   } catch (err) {
     return { user: null, error: "Token tidak valid atau expired." };

@@ -1,6 +1,6 @@
 // lib/rateLimit.ts
 
-import LRU from 'lru-cache'
+import { LRUCache } from 'lru-cache'
 import type { NextApiRequest, NextApiResponse, NextApiHandler } from 'next'
 
 type Options = {
@@ -9,7 +9,7 @@ type Options = {
 }
 
 export function rateLimit(options?: Options) {
-  const tokenCache = new LRU({
+  const tokenCache = new LRUCache({
     max: options?.uniqueTokenPerInterval || 500,
     ttl: options?.interval || 60000, // 1 menit
   })
@@ -20,7 +20,7 @@ export function rateLimit(options?: Options) {
         const token = req.headers['x-forwarded-for'] || req.socket.remoteAddress
         if (!token) throw new Error('No token provided')
 
-        const current = tokenCache.get(token as string) || 0
+        const current = (tokenCache.get(token as string) as number) || 0
 
         if (current >= limit) {
           res.status(429).json({ message: 'Too many requests' })

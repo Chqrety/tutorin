@@ -73,7 +73,7 @@ export default function AdminPostsPage() {
               <TableCell>
                 <Badge
                   variant={
-                    post.status === "published" ? "success" : post.status === "pending" ? "warning" : "destructive"
+                    post.status === "published" ? "default" : post.status === "pending" ? "secondary" : "destructive"
                   }
                 >
                   {post.status}

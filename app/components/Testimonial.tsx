@@ -1,8 +1,10 @@
 "use client"
 
+import type React from "react"
+
 import { useEffect, useState, useRef } from "react"
 import { supabase } from "@/lib/supabase" // Pastikan path benar
-import { motion, AnimatePresence } from "framer-motion"
+import { motion } from "framer-motion"
 import { useInView } from "react-intersection-observer"
 import Image from "next/image"
 import { Star, ChevronLeft, ChevronRight, Quote, User } from "lucide-react"
@@ -41,78 +43,118 @@ const sampleTestimonials = [
     avatarUrl: "/placeholder.svg?height=200&width=200",
     stars: 5,
   },
+  {
+    fullName: "Eka Putri",
+    role: "Mahasiswa Ekonomi",
+    content:
+      "Layanan konsultasi yang sangat membantu. Konselor memberikan pandangan yang objektif dan solusi praktis untuk masalah karir yang saya hadapi. Saya merasa lebih percaya diri sekarang.",
+    avatarUrl: "/placeholder.svg?height=200&width=200",
+    stars: 4.7,
+  },
+  {
+    fullName: "Fajar Ramadhan",
+    role: "Mahasiswa Teknik Sipil",
+    content:
+      "Saya sangat terkesan dengan pendekatan personal yang diberikan. Konselor benar-benar mendengarkan kebutuhan saya dan memberikan saran yang sesuai dengan minat dan kemampuan saya.",
+    avatarUrl: "/placeholder.svg?height=200&width=200",
+    stars: 4.9,
+  },
 ]
 
-const TestimonialCard = ({ fullName, role, content, avatarUrl, stars, index, active }) => {
+interface TestimonialCardProps {
+  fullName: string
+  role: string
+  content: string
+  avatarUrl: string | null
+  stars: number
+  index: number
+  currentIndex: number
+  totalItems: number
+}
+
+const TestimonialCard = ({
+  fullName,
+  role,
+  content,
+  avatarUrl,
+  stars,
+  index,
+  currentIndex,
+  totalItems,
+}: TestimonialCardProps) => {
+  // Calculate if this card is active (centered in view)
+  const isActive = index === currentIndex % totalItems
+
   return (
     <motion.div
-      layout
+      className="testimonial-card flex-shrink-0 w-full md:w-[calc(100%/2-16px)] lg:w-[calc(100%/3-16px)] px-3"
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{
-        opacity: active ? 1 : 0.5,
-        scale: active ? 1 : 0.9,
-        y: active ? 0 : 20,
+        opacity: isActive ? 1 : 0.7,
+        scale: isActive ? 1 : 0.95,
       }}
-      exit={{ opacity: 0, scale: 0.9 }}
       transition={{ duration: 0.5 }}
-      className={`backdrop-blur-md rounded-2xl overflow-hidden border transition-all duration-300 h-full flex flex-col ${
-        active ? "bg-white/15 border-white/20 shadow-lg shadow-blue-500/10 z-10" : "bg-white/10 border-white/10"
-      }`}
     >
-      <div className="p-8 flex flex-col h-full">
-        {/* Quote icon */}
-        <div className="mb-6">
-          <Quote className="w-10 h-10 text-blue-300/50" />
-        </div>
-
-        {/* Testimonial content */}
-        <p className="text-blue-100 mb-6 flex-grow text-lg leading-relaxed">"{content}"</p>
-
-        {/* Footer with avatar and info */}
-        <div className="flex items-center mt-auto">
-          {/* Avatar */}
-          {avatarUrl ? (
-            <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-blue-300/30 mr-4">
-              <Image
-                src={avatarUrl || "/placeholder.svg"}
-                alt={fullName}
-                width={56}
-                height={56}
-                className="w-full h-full object-cover"
-              />
-            </div>
-          ) : (
-            <div className="w-14 h-14 rounded-full bg-blue-500/20 flex items-center justify-center mr-4 border-2 border-blue-300/30">
-              <User className="w-6 h-6 text-blue-300" />
-            </div>
-          )}
-
-          <div className="flex-grow">
-            <div className="font-semibold text-white">{fullName}</div>
-            <div className="text-sm text-blue-200">{role}</div>
+      <div
+        className={`backdrop-blur-md rounded-2xl overflow-hidden border transition-all duration-300 h-full flex flex-col ${
+          isActive ? "bg-white/15 border-white/20 shadow-lg shadow-blue-500/10" : "bg-white/10 border-white/10"
+        }`}
+      >
+        <div className="p-8 flex flex-col h-full">
+          {/* Quote icon */}
+          <div className="mb-6">
+            <Quote className="w-10 h-10 text-blue-300/50" />
           </div>
 
-          {/* Star Rating */}
-          <div className="flex flex-col items-end">
-            <div className="flex items-center mb-1">
-              {[...Array(5)].map((_, i) => {
-                const isFull = i < Math.floor(stars)
-                const isHalf = i === Math.floor(stars) && stars % 1 !== 0
+          {/* Testimonial content */}
+          <p className="text-blue-100 mb-6 flex-grow text-lg leading-relaxed">"{content}"</p>
 
-                return (
-                  <div key={i} className="relative w-4 h-4">
-                    <Star size={16} className="text-blue-900/30 absolute inset-0" />
-                    {isFull && <Star size={16} className="text-yellow-400 absolute inset-0" fill="#facc15" />}
-                    {isHalf && (
-                      <div className="absolute top-0 left-0 h-full w-1/2 overflow-hidden">
-                        <Star size={16} className="text-yellow-400" fill="#facc15" />
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+          {/* Footer with avatar and info */}
+          <div className="flex items-center mt-auto">
+            {/* Avatar */}
+            {avatarUrl ? (
+              <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-blue-300/30 mr-4">
+                <Image
+                  src={avatarUrl || "/placeholder.svg"}
+                  alt={fullName}
+                  width={56}
+                  height={56}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ) : (
+              <div className="w-14 h-14 rounded-full bg-blue-500/20 flex items-center justify-center mr-4 border-2 border-blue-300/30">
+                <User className="w-6 h-6 text-blue-300" />
+              </div>
+            )}
+
+            <div className="flex-grow">
+              <div className="font-semibold text-white">{fullName}</div>
+              <div className="text-sm text-blue-200">{role}</div>
             </div>
-            <p className="text-xs font-medium text-blue-200">{stars.toFixed(1)}/5</p>
+
+            {/* Star Rating */}
+            <div className="flex flex-col items-end">
+              <div className="flex items-center mb-1">
+                {[...Array(5)].map((_, i) => {
+                  const isFull = i < Math.floor(stars)
+                  const isHalf = i === Math.floor(stars) && stars % 1 !== 0
+
+                  return (
+                    <div key={i} className="relative w-4 h-4">
+                      <Star size={16} className="text-blue-900/30 absolute inset-0" />
+                      {isFull && <Star size={16} className="text-yellow-400 absolute inset-0" fill="#facc15" />}
+                      {isHalf && (
+                        <div className="absolute top-0 left-0 h-full w-1/2 overflow-hidden">
+                          <Star size={16} className="text-yellow-400" fill="#facc15" />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              <p className="text-xs font-medium text-blue-200">{stars.toFixed(1)}/5</p>
+            </div>
           </div>
         </div>
       </div>
@@ -121,15 +163,28 @@ const TestimonialCard = ({ fullName, role, content, avatarUrl, stars, index, act
 }
 
 const Testimonial = () => {
-  const [testimonials, setTestimonials] = useState([])
+  interface Testimonial {
+    fullName: string
+    role: string
+    content: string
+    avatarUrl: string | null
+    stars: number
+  }
+
+  const [testimonials, setTestimonials] = useState<Testimonial[]>([])
   const [activeIndex, setActiveIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
+  const [isDragging, setIsDragging] = useState(false)
+  const [startX, setStartX] = useState(0)
+  const [scrollLeft, setScrollLeft] = useState(0)
+  const [autoScrollEnabled, setAutoScrollEnabled] = useState(true)
   const [ref, inView] = useInView({
     triggerOnce: true,
     threshold: 0.1,
   })
 
-  const carouselRef = useRef(null)
+  const carouselRef = useRef<HTMLDivElement>(null)
+  const autoScrollTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     const fetchTestimonials = async () => {
@@ -151,17 +206,34 @@ const Testimonial = () => {
         if (ratingError) throw ratingError
 
         // Gabungkan data ratings dengan users & profiles
-        const combinedData = ratings.map((rating) => ({
+        interface Profile {
+          avatar_url: string | null
+        }
+
+        interface User {
+          full_name: string
+          profiles: Profile | null
+        }
+
+        interface Rating {
+          stars: number
+          description: string
+          user_id: string
+          users: User | null
+        }
+
+        const combinedData = (ratings as unknown as Rating[]).map((rating) => ({
           fullName: rating.users ? rating.users.full_name : "Pengguna Anonim",
           avatarUrl: rating.users && rating.users.profiles ? rating.users.profiles.avatar_url : null,
           role: "Mahasiswa",
           content: rating.description,
-          stars: rating.stars || 0, // Pastikan ada nilai stars
+          stars: rating.stars || 0,
         }))
 
         setTestimonials(combinedData.length > 0 ? combinedData : sampleTestimonials)
-      } catch (err) {
-        console.error("Error fetching testimonials:", err.message)
+      } catch (err: unknown) {
+        const error = err as Error
+        console.error("Error fetching testimonials:", error.message)
         // Fallback to sample data if there's an error
         setTestimonials(sampleTestimonials)
       } finally {
@@ -172,38 +244,144 @@ const Testimonial = () => {
     fetchTestimonials()
   }, [])
 
+  // Function to scroll to a specific testimonial
+  const scrollToTestimonial = (index: number) => {
+    if (!carouselRef.current) return
+
+    const carousel = carouselRef.current
+    const cards = carousel.querySelectorAll(".testimonial-card")
+
+    if (cards.length === 0) return
+
+    const cardWidth = cards[0].clientWidth
+    const gap = 24 // Gap between cards (matches the gap-6 in Tailwind)
+    const scrollPosition = index * (cardWidth + gap)
+
+    carousel.scrollTo({
+      left: scrollPosition,
+      behavior: "smooth",
+    })
+
+    setActiveIndex(index)
+  }
+
   const nextTestimonial = () => {
-    setActiveIndex((prev) => (prev + 1) % testimonials.length)
+    const newIndex = (activeIndex + 1) % testimonials.length
+    scrollToTestimonial(newIndex)
   }
 
   const prevTestimonial = () => {
-    setActiveIndex((prev) => (prev - 1 + testimonials.length) % testimonials.length)
+    const newIndex = (activeIndex - 1 + testimonials.length) % testimonials.length
+    scrollToTestimonial(newIndex)
   }
 
-  // Auto-rotate testimonials
+  // Auto-scroll functionality
   useEffect(() => {
-    const interval = setInterval(() => {
-      nextTestimonial()
-    }, 6000)
+    const startAutoScroll = () => {
+      if (autoScrollTimerRef.current) {
+        clearInterval(autoScrollTimerRef.current)
+      }
 
-    return () => clearInterval(interval)
-  }, [testimonials.length])
+      if (autoScrollEnabled) {
+        autoScrollTimerRef.current = setInterval(() => {
+          nextTestimonial()
+        }, 5000)
+      }
+    }
 
-  // Calculate visible testimonials based on screen size and active index
-  const getVisibleTestimonials = () => {
-    if (typeof window !== "undefined" && window.innerWidth < 768) {
-      // Mobile: show only active
-      return [testimonials[activeIndex]]
-    } else if (typeof window !== "undefined" && window.innerWidth < 1024) {
-      // Tablet: show active and next
-      return [testimonials[activeIndex], testimonials[(activeIndex + 1) % testimonials.length]]
-    } else {
-      // Desktop: show 3 testimonials
-      return [
-        testimonials[activeIndex],
-        testimonials[(activeIndex + 1) % testimonials.length],
-        testimonials[(activeIndex + 2) % testimonials.length],
-      ]
+    startAutoScroll()
+
+    return () => {
+      if (autoScrollTimerRef.current) {
+        clearInterval(autoScrollTimerRef.current)
+      }
+    }
+  }, [activeIndex, testimonials.length, autoScrollEnabled])
+
+  // Mouse and touch event handlers for manual scrolling
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!carouselRef.current) return
+
+    setIsDragging(true)
+    setStartX(e.pageX - carouselRef.current.offsetLeft)
+    setScrollLeft(carouselRef.current.scrollLeft)
+    setAutoScrollEnabled(false)
+  }
+
+  const handleMouseUp = () => {
+    setIsDragging(false)
+
+    // Determine which card is most visible and snap to it
+    if (carouselRef.current) {
+      const carousel = carouselRef.current
+      const cards = carousel.querySelectorAll(".testimonial-card")
+
+      if (cards.length === 0) return
+
+      const cardWidth = cards[0].clientWidth
+      const scrollPosition = carousel.scrollLeft
+      const newIndex = Math.round(scrollPosition / cardWidth)
+
+      // Update active index based on scroll position
+      setActiveIndex(Math.min(Math.max(newIndex, 0), testimonials.length - 1))
+
+      // Re-enable auto-scroll after a delay
+      setTimeout(() => {
+        setAutoScrollEnabled(true)
+      }, 5000)
+    }
+  }
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || !carouselRef.current) return
+
+    e.preventDefault()
+    const x = e.pageX - carouselRef.current.offsetLeft
+    const walk = (x - startX) * 2 // Scroll speed multiplier
+    carouselRef.current.scrollLeft = scrollLeft - walk
+  }
+
+  const handleMouseLeave = () => {
+    setIsDragging(false)
+  }
+
+  // Touch events for mobile
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!carouselRef.current) return
+
+    setIsDragging(true)
+    setStartX(e.touches[0].pageX - carouselRef.current.offsetLeft)
+    setScrollLeft(carouselRef.current.scrollLeft)
+    setAutoScrollEnabled(false)
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging || !carouselRef.current) return
+
+    const x = e.touches[0].pageX - carouselRef.current.offsetLeft
+    const walk = (x - startX) * 2
+    carouselRef.current.scrollLeft = scrollLeft - walk
+  }
+
+  const handleTouchEnd = () => {
+    handleMouseUp() // Reuse the same logic as mouse up
+  }
+
+  // Update active index when scrolling
+  const handleScroll = () => {
+    if (!carouselRef.current || isDragging) return
+
+    const carousel = carouselRef.current
+    const cards = carousel.querySelectorAll(".testimonial-card")
+
+    if (cards.length === 0) return
+
+    const cardWidth = cards[0].clientWidth
+    const scrollPosition = carousel.scrollLeft
+    const newIndex = Math.round(scrollPosition / cardWidth)
+
+    if (newIndex !== activeIndex) {
+      setActiveIndex(Math.min(Math.max(newIndex, 0), testimonials.length - 1))
     }
   }
 
@@ -263,7 +441,7 @@ const Testimonial = () => {
         </div>
 
         {/* Testimonial carousel */}
-        <div className="relative max-w-6xl mx-auto" ref={carouselRef}>
+        <div className="relative max-w-6xl mx-auto">
           {/* Carousel navigation */}
           <div className="flex justify-between absolute -top-20 right-0 space-x-2 z-20">
             <motion.button
@@ -286,36 +464,37 @@ const Testimonial = () => {
 
           {/* Testimonial cards */}
           {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 h-[400px]">
+            <div className="flex gap-6 overflow-hidden h-[400px]">
               {[1, 2, 3].map((_, index) => (
                 <div
                   key={index}
-                  className="backdrop-blur-md rounded-2xl overflow-hidden border border-white/10 bg-white/10 animate-pulse h-full"
+                  className="flex-shrink-0 w-full md:w-[calc(100%/2-16px)] lg:w-[calc(100%/3-16px)] backdrop-blur-md rounded-2xl overflow-hidden border border-white/10 bg-white/10 animate-pulse h-full"
                 ></div>
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 min-h-[400px]">
-              <AnimatePresence>
-                {testimonials.length > 0 ? (
-                  getVisibleTestimonials().map((testimonial, index) => (
-                    <TestimonialCard
-                      key={`${activeIndex}-${index}`}
-                      {...testimonial}
-                      index={index}
-                      active={index === 0}
-                    />
-                  ))
-                ) : (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="col-span-3 text-center text-blue-200"
-                  >
-                    Belum ada testimoni.
-                  </motion.div>
-                )}
-              </AnimatePresence>
+            <div
+              ref={carouselRef}
+              className="flex gap-6 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide"
+              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+              onScroll={handleScroll}
+              onMouseDown={handleMouseDown}
+              onMouseUp={handleMouseUp}
+              onMouseMove={handleMouseMove}
+              onMouseLeave={handleMouseLeave}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+            >
+              {testimonials.map((testimonial, index) => (
+                <TestimonialCard
+                  key={index}
+                  {...testimonial}
+                  index={index}
+                  currentIndex={activeIndex}
+                  totalItems={testimonials.length}
+                />
+              ))}
             </div>
           )}
 
@@ -324,7 +503,7 @@ const Testimonial = () => {
             {testimonials.map((_, index) => (
               <motion.button
                 key={index}
-                onClick={() => setActiveIndex(index)}
+                onClick={() => scrollToTestimonial(index)}
                 className={`w-3 h-3 rounded-full ${
                   index === activeIndex ? "bg-blue-400" : "bg-blue-400/30"
                 } transition-all duration-300`}

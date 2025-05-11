@@ -57,8 +57,8 @@ type Counselor = {
   user_id: string
   specialization: string
   years_of_experience: number
-  created_at: string
-  updated_at: string
+  created_at?: string
+  updated_at?: string
   user: {
     email: string
     full_name: string
@@ -130,7 +130,7 @@ export default function JadwalAdminPage() {
         }
 
         if (counselorsData.length > 0) {
-          setCounselors(counselorsData as Counselor[])
+          setCounselors(counselorsData as unknown as Counselor[])
         }
       } catch (err) {
         console.error("Error fetching admin data:", err)
@@ -284,7 +284,7 @@ Silakan lakukan tindakan selanjutnya.
 Terima kasih telah menggunakan layanan kami.
 
 Salam,
-Tim Doscom Konsultan
+Tim TUTORIN
       `
 
       const emailSent = await sendEmailNotification(userEmail, scheduleId, subject, bodyContent, "admin")
@@ -346,7 +346,7 @@ Alamat: ${updatedSchedule.address}
 Terima kasih telah menggunakan layanan kami.
 
 Salam,
-Tim Doscom Konsultan
+Tim TUTORIN
       `
 
       const emailSent = await sendEmailNotification(userEmail, scheduleId, subject, bodyContent, "admin")
@@ -405,7 +405,7 @@ Jika Anda memiliki pertanyaan lebih lanjut, silakan hubungi kami.
 Terima kasih telah menggunakan layanan kami.
 
 Salam,
-Tim Doscom Konsultan
+Tim TUTORIN
       `
 
       const emailSent = await sendEmailNotification(userEmail, scheduleId, subject, bodyContent, "admin")
@@ -464,7 +464,7 @@ Kami berharap Anda mendapatkan manfaat dari konsultasi ini. Jika Anda memiliki f
 Terima kasih telah menggunakan layanan kami.
 
 Salam,
-Tim Doscom Konsultan
+Tim TUTORIN
       `
 
       const emailSent = await sendEmailNotification(userEmail, scheduleId, subject, bodyContent, "admin")
@@ -533,7 +533,7 @@ Tim Doscom Konsultan
 
   // Sort schedules by priority and date
   const sortedSchedules = useMemo(() => {
-    const priority = {
+    const priority: Record<Schedule['status'], number> = {
       Pending: 1,
       Accepted: 2,
       Rejected: 3,
@@ -541,8 +541,8 @@ Tim Doscom Konsultan
     }
 
     return [...filteredSchedules].sort((a, b) => {
-      const priorityA = priority[a.status] || 5
-      const priorityB = priority[b.status] || 5
+      const priorityA = priority[a.status as keyof typeof priority] || 5
+      const priorityB = priority[b.status as keyof typeof priority] || 5
 
       if (priorityA !== priorityB) {
         return priorityA - priorityB

@@ -52,7 +52,20 @@ const features = [
   },
 ]
 
-const FeatureCard = ({ icon: Icon, title, description, color, benefits, index, isActive, onClick }) => {
+import { LucideIcon } from 'lucide-react';
+
+interface FeatureCardProps {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  color: string;
+  benefits: string[];
+  index: number;
+  isActive: boolean;
+  onClick: () => void;
+}
+
+const FeatureCard: React.FC<FeatureCardProps> = ({ icon: Icon, title, description, color, benefits, index, isActive, onClick }) => {
   const [ref, inView] = useInView({
     triggerOnce: true,
     threshold: 0.1,
@@ -125,13 +138,13 @@ const FeatureCard = ({ icon: Icon, title, description, color, benefits, index, i
 }
 
 const Features = () => {
-  const [activeFeature, setActiveFeature] = useState(null)
+  const [activeFeature, setActiveFeature] = useState<number | null>(null)
   const [ref, inView] = useInView({
     triggerOnce: true,
     threshold: 0.1,
   })
 
-  const handleFeatureClick = (index) => {
+  const handleFeatureClick = (index: number) => {
     setActiveFeature(activeFeature === index ? null : index)
   }
 

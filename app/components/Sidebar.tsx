@@ -3,12 +3,17 @@ import { Button } from "@/components/ui/button"
 import { Clock, Hash, ThumbsUp } from "lucide-react"
 import ProtectedLink from "./ProtectedLink"
 
+type ProtectedLinkProps = {
+  href: string;
+  children: React.ReactNode;
+  className?: string;  // Add className here to allow it
+};
+
 type SidebarProps = {
   tags: string[]
   popularPosts: { id: string; title: string }[]
   lastPosts: { id: string; title: string }[]
 }
-
 export default function Sidebar({ tags, popularPosts, lastPosts }: SidebarProps) {
   return (
     <div className="space-y-6">
@@ -76,9 +81,11 @@ export default function Sidebar({ tags, popularPosts, lastPosts }: SidebarProps)
       {/* Browse More */}
       <div className="text-center">
         <Button variant="outline" className="border-zinc-700 text-white hover:bg-zinc-800 w-full" asChild>
-          <ProtectedLink href="/tags">Browse All Tags</ProtectedLink>
+          <ProtectedLink href="/tags" className="text-white">
+            Browse All Tags
+          </ProtectedLink>
         </Button>
       </div>
     </div>
-  )
+  );
 }

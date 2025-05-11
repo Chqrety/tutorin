@@ -58,7 +58,7 @@ export default function SidebarProfile() {
         if (data) {
           setProfile({
             full_name: data.full_name,
-            avatar_url: data.profiles?.avatar_url || "/placeholder-user.jpg",
+            avatar_url: data.profiles?.[0]?.avatar_url || "/placeholder-user.jpg",
             email: data.email,
           })
         }

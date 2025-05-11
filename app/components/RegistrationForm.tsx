@@ -173,17 +173,7 @@ export default function RegistrationForm() {
           return
         }
 
-        const { data: urlData, error: urlError } = supabase.storage.from("avatars").getPublicUrl(fileName)
-
-        if (urlError) {
-          console.error("urlError:", urlError)
-          toast({
-            variant: "destructive",
-            title: "Gagal Mendapatkan URL Avatar",
-            description: urlError.message,
-          })
-          return
-        }
+        const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(fileName)
 
         avatarUrl = urlData?.publicUrl ?? null
       }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { questions } from "../data/questions"
-import QuestionCard from "../components/QuestionCard"
+import QuestionCard from "../components/Kuiscard"
 import ResultCard from "../components/ResultCard"
 import ProgressBar from "../components/ProgressBar"
 
@@ -150,53 +150,55 @@ const MinatBakatPage = () => {
         {!isCompleted ? (
           <div className="backdrop-blur-xl bg-white/60 shadow-lg rounded-2xl overflow-hidden border border-white/40">
             <div className="p-8">
-              <ProgressBar current={currentQuestionIndex + 1} total={questions.length} percentage={progress} />
+                <ProgressBar current={currentQuestionIndex + 1} total={questions.length} percentage={progress} />
 
-              <QuestionCard
-                question={currentQuestion}
-                selectedOption={answers[currentQuestion.id]}
-                onSelectOption={(option) => handleSelectOption(currentQuestion.id, option)}
-              />
-
-              <div className="mt-10 flex justify-between">
-                <button
-                  onClick={handlePrev}
-                  disabled={currentQuestionIndex === 0}
-                  className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 ${
-                    currentQuestionIndex === 0
-                      ? "bg-gray-300/50 cursor-not-allowed text-gray-500"
-                      : "bg-white/80 hover:bg-white text-gray-700 shadow-md hover:shadow-lg border border-white/40"
-                  }`}
-                >
-                  Sebelumnya
-                </button>
-
-                {currentQuestionIndex < questions.length - 1 ? (
-                  <button
-                    onClick={handleNext}
-                    disabled={!answers[currentQuestion.id]}
-                    className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 ${
-                      !answers[currentQuestion.id]
-                        ? "bg-gray-300/50 cursor-not-allowed text-gray-500"
-                        : "bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white shadow-md hover:shadow-lg"
-                    }`}
-                  >
-                    Selanjutnya
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleSubmit}
-                    disabled={!answers[currentQuestion.id]}
-                    className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 ${
-                      !answers[currentQuestion.id]
-                        ? "bg-gray-300/50 cursor-not-allowed text-gray-500"
-                        : "bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white shadow-md hover:shadow-lg"
-                    }`}
-                  >
-                    Lihat Hasil
-                  </button>
+                {currentQuestion && (
+                    <QuestionCard
+                        question={currentQuestion}
+                        selectedOption={answers[currentQuestion.id]}
+                        onSelectOption={(option: string) => handleSelectOption(currentQuestion.id, option)}
+                    />
                 )}
-              </div>
+
+                <div className="mt-10 flex justify-between">
+                    <button
+                        onClick={handlePrev}
+                        disabled={currentQuestionIndex === 0}
+                        className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 ${
+                            currentQuestionIndex === 0
+                                ? "bg-gray-300/50 cursor-not-allowed text-gray-500"
+                                : "bg-white/80 hover:bg-white text-gray-700 shadow-md hover:shadow-lg border border-white/40"
+                        }`}
+                    >
+                        Sebelumnya
+                    </button>
+
+                    {currentQuestionIndex < questions.length - 1 ? (
+                        <button
+                            onClick={handleNext}
+                            disabled={!answers[currentQuestion.id]}
+                            className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 ${
+                                !answers[currentQuestion.id]
+                                    ? "bg-gray-300/50 cursor-not-allowed text-gray-500" 
+                                    : "bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white shadow-md hover:shadow-lg"
+                            }`}
+                        >
+                            Selanjutnya
+                        </button>
+                    ) : (
+                        <button
+                            onClick={handleSubmit}
+                            disabled={!answers[currentQuestion.id]}
+                            className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 ${
+                                !answers[currentQuestion.id]
+                                    ? "bg-gray-300/50 cursor-not-allowed text-gray-500"
+                                    : "bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white shadow-md hover:shadow-lg"
+                            }`}
+                        >
+                            Lihat Hasil 
+                        </button>
+                    )}
+                </div>
             </div>
           </div>
         ) : (

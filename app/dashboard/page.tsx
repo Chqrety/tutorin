@@ -121,18 +121,18 @@ export default function DashboardPage() {
           confirmed: item.confirmed,
           counselor: item.counselor
             ? {
-                id: item.counselor.id,
-                name: item.counselor.admin.name,
-                adminEmail: item.counselor.admin.email,
-                avatarUrl: null, // This would come from profiles if available
+                id: String(item.counselor.id),
+                name: String(item.counselor.admin.name),
+                adminEmail: String(item.counselor.admin.email),
+                avatarUrl: undefined
               }
-            : null,
+            : undefined,
           rating: item.rating
             ? {
-                stars: item.rating.stars,
-                description: item.rating.description,
+                stars: Number(item.rating.stars),
+                description: String(item.rating.description),
               }
-            : null,
+            : undefined,
         }))
         
         setSchedules(transformedData)
@@ -236,18 +236,18 @@ export default function DashboardPage() {
         confirmed: item.confirmed,
         counselor: item.counselor
           ? {
-              id: item.counselor.id,
-              name: item.counselor.admin.name,
-              adminEmail: item.counselor.admin.email,
-              avatarUrl: null,
+              id: String(item.counselor.id),
+              name: String(item.counselor.admin.name),
+              adminEmail: String(item.counselor.admin.email),
+              avatarUrl: undefined,
             }
-          : null,
+          : undefined,
         rating: item.rating
           ? {
-              stars: item.rating.stars,
-              description: item.rating.description,
+              stars: Number(item.rating.stars),
+              description: String(item.rating.description),
             }
-          : null,
+          : undefined,
       }))
       
       setSchedules(transformedData)

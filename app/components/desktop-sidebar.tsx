@@ -126,15 +126,19 @@ export default function Sidebar() {
         <div className="relative h-full flex flex-col z-10">
           {/* Header */}
           <div className="flex items-center justify-center h-20 px-6 border-b border-blue-800/30">
-            <motion.span
-              className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-blue-200"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-            >
-              TUTORIN
-            </motion.span>
+            <div className="flex items-center gap-1 mt-10">
+              <motion.img
+                src="/logo.png"
+                alt="Tutorin Logo"
+                className="w-45 h-45 mb-2"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.1 }}
+              />
+              
+            </div>
           </div>
+
 
           {/* Navigation */}
           {renderNav()}

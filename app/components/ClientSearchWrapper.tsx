@@ -21,6 +21,13 @@ type Question = {
   question_comments: { id: string }[] | null
 }
 
+interface SidebarProps {
+  tags: string[]
+  popularPosts: { id: string; title: string }[]
+  lastPosts: { id: string; title: string }[]
+  onSearch: (query: string) => void
+}
+
 type ClientSearchWrapperProps = {
   tags: string[]
   popularPosts: { id: string; title: string }[]
@@ -85,5 +92,5 @@ export default function ClientSearchWrapper({
     }
   }
 
-  return <Sidebar tags={tags} popularPosts={popularPosts} lastPosts={lastPosts} onSearch={handleSearch} />
+  return <Sidebar tags={tags} popularPosts={popularPosts} lastPosts={lastPosts} />
 }

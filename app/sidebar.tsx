@@ -34,7 +34,7 @@ export default async function DashboardSidebar() {
       .eq("id", user.id)
       .maybeSingle()
     if (profileData) {
-      profile = profileData as UserProfile
+      profile = profileData as unknown as UserProfile
     }
   }
 

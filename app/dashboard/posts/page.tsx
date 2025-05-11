@@ -103,7 +103,7 @@ export default function DashboardPostsPage() {
 
         if (error) throw error
         if (data) {
-          setQuestions(data as Question[])
+          setQuestions(data as unknown as Question[])
         }
       } catch (err) {
         console.error("Error fetching user questions:", err)

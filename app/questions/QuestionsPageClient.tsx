@@ -1,25 +1,18 @@
 "use client"
 
-import { useState } from "react"
-import { motion } from "framer-motion"
+import { useState, useEffect } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { useMediaQuery } from "@/hooks/use-media-query"
-import { useToast } from "@/hooks/use-toast"
-import { cn } from "@/lib/utils"
 import ProtectedLink from "../components/ProtectedLink"
 import AskQuestionButton from "../components/AskQuestionButton"
 import {
   MessageSquare,
   ThumbsUp,
-  Share2,
   Menu,
   Search,
   Bell,
@@ -31,10 +24,11 @@ import {
   Filter,
   Plus,
   Hash,
-  Eye,
 } from "lucide-react"
 
-// Types
+// Replace the QuestionCard component with an import
+import QuestionCard from "../components/QuestionCard"
+
 type UserProfile = {
   full_name: string
   profiles: {
@@ -50,11 +44,10 @@ type Question = {
   tags: string | null
   votes: number
   created_at: string
-  user: UserProfile
+  user: UserProfile // Single UserProfile object, not an array
   answers: { id: string }[] | null
   question_comments: { id: string }[] | null
 }
-
 type SidebarProps = {
   tags: string[]
   popularPosts: { id: string; title: string }[]
@@ -63,19 +56,30 @@ type SidebarProps = {
 
 // Header Component
 function Header({ onMenuToggle }: { onMenuToggle: () => void }) {
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+
+  const handleLoginClick = () => {
+    window.location.href = "/login"
+  }
+
+  useEffect(() => {
+    const userSession = sessionStorage.getItem("userSession")
+    setIsLoggedIn(!!userSession)
+  }, [])
+
   return (
     <header className="h-16 bg-black/80 backdrop-blur-sm border-b border-zinc-800 flex items-center justify-between px-4 sticky top-0 z-50 shadow-md">
-      <div className="flex items-center">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="mr-2 text-white hover:bg-zinc-800 lg:hidden"
-          onClick={onMenuToggle}
-        >
-          <Menu className="h-5 w-5" />
-        </Button>
-        <h1 className="text-xl font-bold text-white">DevQA</h1>
-      </div>
+    <div className="flex items-center">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="mr-2 text-white hover:bg-zinc-800 lg:hidden"
+        onClick={onMenuToggle}
+      >
+        <Menu className="h-5 w-5" />
+      </Button>
+      <img src="/logo.png" alt="DevQA Logo" className="w-36 h-30 object-contain" />
+    </div>
 
       <div className="hidden md:flex relative max-w-md mx-auto">
         <div className="relative w-full">
@@ -93,10 +97,20 @@ function Header({ onMenuToggle }: { onMenuToggle: () => void }) {
         </Button>
 
         <div className="hidden md:block">
-          <AskQuestionButton />
+          {isLoggedIn ? (
+            <AskQuestionButton />
+          ) : (
+            <Button onClick={handleLoginClick} className="bg-zinc-800 hover:bg-zinc-700 text-white">
+              Log In to Ask
+            </Button>
+          )}
         </div>
 
-        <Button variant="ghost" className="flex items-center gap-2 text-white hover:bg-zinc-800 px-2">
+        <Button
+          variant="ghost"
+          className="flex items-center gap-2 text-white hover:bg-zinc-800 px-2"
+          onClick={handleLoginClick}
+        >
           <Avatar className="h-8 w-8 border border-zinc-700">
             <AvatarImage src="/placeholder.svg?height=40&width=40" />
             <AvatarFallback className="bg-zinc-800">U</AvatarFallback>
@@ -201,84 +215,6 @@ function Sidebar({ tags, popularPosts, lastPosts }: SidebarProps) {
   )
 }
 
-// Vote Share Buttons
-function VoteShareButtons({ questionId, initialVotes }: { questionId: string; initialVotes: number }) {
-  const [votes, setVotes] = useState(initialVotes)
-  const [voted, setVoted] = useState(false)
-  const { toast } = useToast()
-
-  const handleVote = () => {
-    if (voted) {
-      setVotes(votes - 1)
-      setVoted(false)
-      toast({
-        title: "Vote removed",
-        description: "Your vote has been removed",
-      })
-    } else {
-      setVotes(votes + 1)
-      setVoted(true)
-      toast({
-        title: "Vote added",
-        description: "Your vote has been added",
-      })
-    }
-  }
-
-  const handleShare = () => {
-    navigator.clipboard.writeText(`https://yourdomain.com/questions/${questionId}`)
-    toast({
-      title: "Link copied",
-      description: "Question link copied to clipboard",
-    })
-  }
-
-  return (
-    <div className="flex items-center gap-4">
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className={cn(
-                "text-zinc-400 hover:text-white hover:bg-zinc-800 gap-2",
-                voted && "text-white bg-zinc-800",
-              )}
-              onClick={handleVote}
-            >
-              <ThumbsUp className={cn("h-4 w-4", voted && "fill-white")} />
-              <span>{votes}</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>{voted ? "Remove vote" : "Add vote"}</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-zinc-400 hover:text-white hover:bg-zinc-800 gap-2"
-              onClick={handleShare}
-            >
-              <Share2 className="h-4 w-4" />
-              <span>Share</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Share this question</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    </div>
-  )
-}
-
 // Filter Bar Component
 function FilterBar() {
   return (
@@ -313,78 +249,9 @@ function FilterBar() {
   )
 }
 
-// Question Card Component
-function QuestionCard({ question }: { question: Question }) {
-  const answersCount = question.answers?.length || 0
-  const commentsCount = question.question_comments?.length || 0
-
-  return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-      <Card className="bg-zinc-900/80 backdrop-blur-sm hover:bg-zinc-900/90 transition-colors border border-zinc-800 shadow-sm overflow-hidden">
-        <CardHeader className="pb-2">
-          <div className="flex items-center space-x-2">
-            <Avatar className="h-10 w-10 border border-zinc-700">
-              <AvatarImage
-                src={question.user.profiles?.avatar_url || "/placeholder.svg?height=40&width=40"}
-                alt={question.user.full_name || "Unknown User"}
-              />
-              <AvatarFallback className="bg-zinc-800">{question.user.full_name?.charAt(0) || "?"}</AvatarFallback>
-            </Avatar>
-            <div>
-              <p className="font-semibold text-white">{question.user.full_name || "Unknown User"}</p>
-              <p className="text-xs text-zinc-400">{new Date(question.created_at).toLocaleString()}</p>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <ProtectedLink href={`/questions/${question.id}`}>
-            <CardTitle className="text-xl mb-2 text-white hover:text-zinc-300 transition-colors">
-              {question.title}
-            </CardTitle>
-          </ProtectedLink>
-          <p className="text-zinc-300 mb-4 line-clamp-3">{question.content}</p>
-          {question.code && (
-            <pre className="bg-black p-3 rounded-md text-sm overflow-x-auto mb-4 border border-zinc-800 text-zinc-300">
-              <code>{question.code}</code>
-            </pre>
-          )}
-          {question.tags && (
-            <div className="flex flex-wrap gap-2 mb-4">
-              {question.tags
-                .split(/\s+/)
-                .filter(Boolean)
-                .map((tag, index) => (
-                  <Badge key={index} className="bg-zinc-800 text-white border-zinc-700">
-                    {tag}
-                  </Badge>
-                ))}
-            </div>
-          )}
-        </CardContent>
-        <CardFooter className="flex justify-between items-center text-sm text-zinc-400 pt-0 border-t border-zinc-800">
-          <VoteShareButtons questionId={question.id} initialVotes={question.votes} />
-          <div className="flex items-center space-x-4">
-            <span className="flex items-center">
-              <MessageSquare className="h-4 w-4 mr-1" />
-              {answersCount} answers
-            </span>
-            <span className="flex items-center">
-              <MessageSquare className="h-4 w-4 mr-1" />
-              {commentsCount} comments
-            </span>
-            <span className="hidden md:flex items-center">
-              <Eye className="h-4 w-4 mr-1" />
-              {Math.floor(Math.random() * 100) + 10} views
-            </span>
-          </div>
-        </CardFooter>
-      </Card>
-    </motion.div>
-  )
-}
-
 // Main Client Component
 export default function QuestionsPageClient({
+
   questions,
   tags,
   popularPosts,
@@ -397,7 +264,12 @@ export default function QuestionsPageClient({
 }) {
   const [showSidebar, setShowSidebar] = useState(false)
   const [activeTab, setActiveTab] = useState("latest")
-  const isMobile = useMediaQuery("(max-width: 1024px)")
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+
+  useEffect(() => {
+    const userSession = sessionStorage.getItem("userSession")
+    setIsLoggedIn(!!userSession)
+  }, [])
 
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white">
@@ -433,7 +305,16 @@ export default function QuestionsPageClient({
             <div className="flex justify-between items-center mb-6">
               <h1 className="text-2xl font-bold text-white">Questions Feed</h1>
               <div className="hidden md:block">
-                <AskQuestionButton />
+                {isLoggedIn ? (
+                  <AskQuestionButton />
+                ) : (
+                  <Button
+                    onClick={() => (window.location.href = "/login")}
+                    className="bg-zinc-800 hover:bg-zinc-700 text-white"
+                  >
+                    Log In to Ask
+                  </Button>
+                )}
               </div>
             </div>
 

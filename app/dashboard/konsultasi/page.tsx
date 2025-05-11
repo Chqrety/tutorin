@@ -26,7 +26,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Separator } from "@/components/ui/separator"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useToast } from "@/hooks/use-toast"
-import { ArrowLeft, Calendar, ChevronRight, Clock, History, Home, Info, Loader2, LogOut, Menu, MessageCircle, MessageSquare, PanelRightClose, Plus, Send, Settings, User, X  as  CalendarIcon2} from 'lucide-react'
+import { ArrowLeft, Calendar, ChevronRight, Clock, History, Home, Info, Loader2, LogOut, Menu, MessageCircle, MessageSquare, PanelRightClose, Plus, Send, Settings, User, X  as  CalendarIcon2, X} from 'lucide-react'
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { cn } from "@/lib/utils"
 
@@ -115,13 +115,20 @@ export default function UserKonsultasiPage() {
   const isTablet = useMediaQuery("(max-width: 1024px)")
   const bottomRef = useRef<HTMLDivElement>(null)
   const activeRef = useRef<Consultation | null>(activeConsultation)
-  const messageInputRef = useRef<HTMLTextAreaElement>(null)
+  const messageInputRef = useRef<HTMLInputElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
 
   /* keep ref sync */
   useEffect(() => {
-    activeRef.current = activeConsultation
+    let isSubscribed = true;
+    activeRef.current = activeConsultation;
+    
+    const cleanup = () => {
+      isSubscribed = false;
+    };
+    
+    return cleanup;
   }, [activeConsultation])
 
   /* scroll bottom */
@@ -220,25 +227,24 @@ export default function UserKonsultasiPage() {
     if (!userId) return
     const fetchProfile = async () => {
       try {
-        const { data, error } = await supabase
-          .from("users")
-          .select(`
-            id,
-            full_name,
-            email,
-            profiles:profiles(avatar_url)
-          `)
-          .eq("id", userId)
-          .single()
+  const { data, error } = await supabase
+    .from("users")
+    .select(`
+      id,
+      full_name,
+      email,
+      profiles (avatar_url)
+    `)
+    .eq("id", userId)
+    .single()
+  if (error) throw error
 
-        if (error) throw error
-
-        setUserProfile({
-          id: data.id,
-          full_name: data.full_name,
-          email: data.email,
-          avatar_url: data.profiles?.avatar_url || "/placeholder.svg"
-        } as UserProfile)
+  setUserProfile({
+    id: data.id,
+    full_name: data.full_name,
+    email: data.email,
+    avatar_url: data.profiles?.[0]?.avatar_url || "/placeholder.svg"
+  } as UserProfile)
       } catch (err) {
         console.error("Error fetching profile:", err) 
         toast({
@@ -374,7 +380,14 @@ export default function UserKonsultasiPage() {
       })
       .subscribe()
 
-    return () => supabase.removeChannel(ch)
+    return () => {
+      // Handle cleanup synchronously
+      try {
+        supabase.removeChannel(ch)
+      } catch (err) {
+        console.error('Error removing channel:', err)
+      }
+    }
   }, [userId, consultations, processedMessageIds, toast])
 
   /* ------------------------------------------------------------------ */
@@ -382,12 +395,15 @@ export default function UserKonsultasiPage() {
   /* ------------------------------------------------------------------ */
   useEffect(() => {
     if (!userId) return
+
+    let isSubscribed = true
     const channel = supabase
       .channel("consult-rt")
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "consultations", filter: `user_id=eq.${userId}` },
         (payload) => {
+          if (!isSubscribed) return
           const updated = payload.new
           const old = consultations.find((c) => c.id === updated.id)
           if (old && old.status !== updated.status) {
@@ -425,7 +441,10 @@ export default function UserKonsultasiPage() {
       )
       .subscribe()
 
-    return () => supabase.removeChannel(channel)
+    return () => {
+      isSubscribed = false
+      supabase.removeChannel(channel)
+    }
   }, [userId, consultations, toast])
 
   /* ------------------------------------------------------------------ */
@@ -634,84 +653,7 @@ export default function UserKonsultasiPage() {
 
             <div className="flex-1"></div>
 
-            <div className="flex items-center gap-2">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setOpenNew(true)}
-                      className="text-white hover:bg-blue-800"
-                    >
-                      <Plus className="h-5 w-5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Konsultasi Baru (Ctrl+N)</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              <div className="relative">
-                <Button
-                  variant="ghost"
-                  className="flex items-center gap-2 text-white hover:bg-blue-800 px-2"
-                  onClick={() => setShowUserMenu(!showUserMenu)}
-                >
-                  <Avatar className="h-8 w-8 border border-blue-600">
-                    <AvatarImage src={userProfile?.avatar_url || "/placeholder.svg?height=40&width=40"} />
-                    <AvatarFallback className="bg-blue-700">{userProfile?.full_name?.charAt(0) || "U"}</AvatarFallback>
-                  </Avatar>
-                  <span className="font-medium hidden md:inline">{userProfile?.full_name || "Pengguna"}</span>
-                </Button>
-
-                {showUserMenu && (
-                  <div className="absolute right-0 mt-2 w-48 bg-blue-800 border border-blue-700 rounded-md shadow-lg z-50">
-                    <div className="p-3 border-b border-blue-700">
-                      <p className="font-medium text-white">{userProfile?.full_name || "Pengguna"}</p>
-                      <p className="text-xs text-blue-300 truncate">{userProfile?.email || ""}</p>
-                    </div>
-                    <div className="p-1">
-                      <Button
-                        variant="ghost"
-                        className="w-full justify-start text-white hover:bg-blue-700 rounded-sm"
-                        onClick={() => {
-                          setShowUserMenu(false)
-                          router.push("/profile")
-                        }}
-                      >
-                        <User className="h-4 w-4 mr-2" />
-                        Profil
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="w-full justify-start text-white hover:bg-blue-700 rounded-sm"
-                        onClick={() => {
-                          setShowUserMenu(false)
-                          router.push("/settings")
-                        }}
-                      >
-                        <Settings className="h-4 w-4 mr-2" />
-                        Pengaturan
-                      </Button>
-                      <Separator className="my-1 bg-blue-700" />
-                      <Button
-                        variant="ghost"
-                        className="w-full justify-start text-white hover:bg-blue-700 rounded-sm"
-                        onClick={() => {
-                          setShowUserMenu(false)
-                          handleLogout()
-                        }}
-                      >
-                        <LogOut className="h-4 w-4 mr-2" />
-                        Keluar
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+            
           </header>
         )}
 

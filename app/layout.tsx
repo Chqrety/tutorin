@@ -7,7 +7,7 @@ import { Slide, Zoom, Flip, Bounce } from "react-toastify"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata = {
-  title: "DoscomKonsultan - Konsultasi Minat Bakat Mahasiswa",
+  title: "TUTORIN - Konsultasi Minat Bakat Mahasiswa",
   description: "Temukan potensi terbaikmu dan raih karir impianmu",
 }
 

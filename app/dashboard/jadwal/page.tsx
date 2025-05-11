@@ -254,10 +254,28 @@ export default function JadwalPage() {
 
   // Swipe to action functionality
   const handleTouchStartSwipe = (e: React.TouchEvent, scheduleId: number) => {
-    if (!isSwipeEnabled) return
-    setTouchStartX(e.touches[0].clientX)
-    setSelectedSchedule(allSchedules.find(s => s.id === scheduleId) || null)
-  }
+      if (!isSwipeEnabled) return
+      setTouchStartX(e.touches[0].clientX)
+      const schedule = allSchedules.find(s => s.id === scheduleId);
+      if (schedule) {
+        setSelectedSchedule({
+          ...schedule,
+          id: schedule.id,
+          counselor: schedule.counselor ? {
+            id: String(schedule.counselor.id),
+            name: String(schedule.counselor.name),
+            adminEmail: String(schedule.counselor.adminEmail),
+            avatarUrl: schedule.counselor.avatarUrl || undefined
+          } : undefined,
+          rating: schedule.rating ? {
+            stars: Number(schedule.rating.stars),
+            description: String(schedule.rating.description)
+          } : undefined
+        });
+      } else {
+        setSelectedSchedule(null);
+      }
+    }
 
   const handleTouchMoveSwipe = (e: React.TouchEvent) => {
     if (!isSwipeEnabled || !touchStartX) return
@@ -318,14 +336,29 @@ export default function JadwalPage() {
 
   // Schedule form
   const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    reset,
-    control: scheduleControl,
-  } = useForm({
-    resolver: yupResolver(schema),
-  })
+      register,
+      handleSubmit,
+      formState: { errors },
+      reset,
+      control: scheduleControl,
+    } = useForm<{
+      date: string;
+      title: string;
+      time: string;
+      address: string;
+      description: string;
+      counselor_id: string;
+    }>({
+      resolver: yupResolver(schema as any),
+      defaultValues: {
+        date: date?.toISOString() || '',
+        title: '',
+        time: '',
+        address: '',
+        description: '',
+        counselor_id: '',
+      }
+    })
 
   // Get user ID from session
   useEffect(() => {
@@ -1049,7 +1082,19 @@ Terima kasih telah menggunakan layanan kami.
               : ""
           }`}
           onClick={() => {
-            setSelectedSchedule(schedule)
+            setSelectedSchedule({
+              ...schedule,
+              counselor: schedule.counselor ? {
+                id: String(schedule.counselor.id),
+                name: String(schedule.counselor.name), 
+                adminEmail: String(schedule.counselor.adminEmail),
+                avatarUrl: schedule.counselor.avatarUrl || undefined
+              } : undefined,
+              rating: schedule.rating ? {
+                stars: Number(schedule.rating.stars),
+                description: String(schedule.rating.description)
+              } : undefined
+            })
             setIsDetailOpen(true)
           }}
         >
@@ -1163,7 +1208,28 @@ Terima kasih telah menggunakan layanan kami.
         if (!acc[dateStr]) {
           acc[dateStr] = []
         }
-        acc[dateStr].push(schedule)
+        // Transform schedule to match Schedule type exactly
+        const transformedSchedule: Schedule = {
+          id: schedule.id,
+          date: schedule.date,
+          time: schedule.time,
+          title: schedule.title,
+          description: schedule.description,
+          address: schedule.address,
+          status: schedule.status,
+          confirmed: schedule.confirmed,
+          counselor: schedule.counselor ? {
+            id: String(schedule.counselor.id),
+            name: String(schedule.counselor.name),
+            adminEmail: String(schedule.counselor.adminEmail),
+            avatarUrl: schedule.counselor.avatarUrl || undefined
+          } : undefined,
+          rating: schedule.rating ? {
+            stars: Number(schedule.rating.stars),
+            description: String(schedule.rating.description)
+          } : undefined
+        }
+        acc[dateStr].push(transformedSchedule)
         return acc
       },
       {} as Record<string, Schedule[]>,
@@ -1475,7 +1541,19 @@ Terima kasih telah menggunakan layanan kami.
         transition={{ duration: 0.2 }}
         className="p-4 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition-all cursor-pointer"
         onClick={() => {
-          setSelectedSchedule(schedule)
+          setSelectedSchedule({
+            ...schedule,
+            counselor: schedule.counselor ? {
+              id: String(schedule.counselor.id),
+              name: String(schedule.counselor.name),
+              adminEmail: String(schedule.counselor.adminEmail),
+              avatarUrl: schedule.counselor.avatarUrl || undefined
+            } : undefined,
+            rating: schedule.rating ? {
+              stars: Number(schedule.rating.stars),
+              description: String(schedule.rating.description)
+            } : undefined
+          })
           setIsDetailOpen(true)
         }}
       >
@@ -1705,7 +1783,30 @@ Terima kasih telah menggunakan layanan kami.
                     Jadwal Mendatang
                   </h2>
                   <div className="space-y-3">
-                    {upcomingSchedules.slice(0, 2).map(renderUpcomingScheduleCard)}
+                    {upcomingSchedules.slice(0, 2).map(schedule => {
+                      // Transform the schedule to match the Schedule type exactly
+                      const transformedSchedule: Schedule = {
+                        id: schedule.id,
+                        date: schedule.date,
+                        time: schedule.time,
+                        title: schedule.title, 
+                        description: schedule.description,
+                        address: schedule.address,
+                        status: schedule.status,
+                        confirmed: schedule.confirmed,
+                        counselor: schedule.counselor ? {
+                          id: String(schedule.counselor.id),
+                          name: String(schedule.counselor.name),
+                          adminEmail: String(schedule.counselor.adminEmail),
+                          avatarUrl: schedule.counselor.avatarUrl || undefined
+                        } : undefined,
+                        rating: schedule.rating ? {
+                          stars: Number(schedule.rating.stars),
+                          description: String(schedule.rating.description)
+                        } : undefined
+                      };
+                      return renderUpcomingScheduleCard(transformedSchedule);
+                    })}
                     {upcomingSchedules.length > 2 && (
                       <Button
                         variant="ghost"
@@ -1730,7 +1831,34 @@ Terima kasih telah menggunakan layanan kami.
                     Jadwal Hari Ini
                   </h2>
                   <div className="space-y-3">
-                    {todaySchedules.map(renderScheduleCard)}
+                    {todaySchedules.map((schedule) => {
+                      // Transform schedule to match Schedule type exactly and fix counselor typing
+                      const transformedSchedule: Schedule = {
+                        id: schedule.id,
+                        date: schedule.date,
+                        time: schedule.time,
+                        title: schedule.title,
+                        description: schedule.description,
+                        address: schedule.address,
+                        status: schedule.status,
+                        confirmed: schedule.confirmed,
+                        counselor: schedule.counselor
+                          ? {
+                              id: String(schedule.counselor.id),
+                              name: String(schedule.counselor.name),
+                              adminEmail: String(schedule.counselor.adminEmail),
+                              avatarUrl: schedule.counselor.avatarUrl || undefined,
+                            }
+                          : undefined, // use undefined instead of null
+                        rating: schedule.rating
+                          ? {
+                              stars: Number(schedule.rating.stars),
+                              description: String(schedule.rating.description),
+                            }
+                          : undefined,
+                      }
+                      return renderScheduleCard(transformedSchedule)
+                    })}
                   </div>
                 </div>
               )}
@@ -1810,7 +1938,34 @@ Terima kasih telah menggunakan layanan kami.
                       scrollableTarget="scrollableDiv"
                       className="space-y-4"
                     >
-                      {pendingSchedules.map(renderScheduleCard)}
+                      {pendingSchedules.map((schedule) => {
+                        // Ensure counselor is always undefined or the correct type
+                        const transformedSchedule: Schedule = {
+                          id: schedule.id,
+                          date: schedule.date,
+                          time: schedule.time,
+                          title: schedule.title,
+                          description: schedule.description,
+                          address: schedule.address,
+                          status: schedule.status,
+                          confirmed: schedule.confirmed,
+                          counselor: schedule.counselor
+                            ? {
+                                id: String(schedule.counselor.id),
+                                name: String(schedule.counselor.name),
+                                adminEmail: String(schedule.counselor.adminEmail),
+                                avatarUrl: schedule.counselor.avatarUrl || undefined,
+                              }
+                            : undefined, // use undefined instead of null
+                          rating: schedule.rating
+                            ? {
+                                stars: Number(schedule.rating.stars),
+                                description: String(schedule.rating.description),
+                              }
+                            : undefined,
+                        }
+                        return renderScheduleCard(transformedSchedule)
+                      })}
                     </InfiniteScroll>
                   ) : (
                     <div className="text-center py-8 bg-white/5 rounded-xl border border-white/10">
@@ -1855,7 +2010,25 @@ Terima kasih telah menggunakan layanan kami.
                       scrollableTarget="scrollableDiv"
                       className="space-y-4"
                     >
-                      {acceptedSchedules.map(renderScheduleCard)}
+                      {acceptedSchedules
+                        .map((schedule) => ({
+                          ...schedule,
+                          counselor: schedule.counselor
+                            ? {
+                                id: String(schedule.counselor.id),
+                                name: String(schedule.counselor.name),
+                                adminEmail: String(schedule.counselor.adminEmail),
+                                avatarUrl: schedule.counselor.avatarUrl ?? undefined,
+                              }
+                            : undefined,
+                          rating: schedule.rating
+                            ? {
+                                stars: Number(schedule.rating.stars),
+                                description: String(schedule.rating.description),
+                              }
+                            : undefined,
+                        }))
+                        .map(renderScheduleCard)}
                     </InfiniteScroll>
                   ) : (
                     <div className="text-center py-8 bg-white/5 rounded-xl border border-white/10">
@@ -1894,7 +2067,25 @@ Terima kasih telah menggunakan layanan kami.
                       scrollableTarget="scrollableDiv"
                       className="space-y-4"
                     >
-                      {finishedSchedules.map(renderScheduleCard)}
+                      {finishedSchedules
+                        .map((schedule) => ({
+                          ...schedule,
+                          counselor: schedule.counselor
+                            ? {
+                                id: String(schedule.counselor.id),
+                                name: String(schedule.counselor.name),
+                                adminEmail: String(schedule.counselor.adminEmail),
+                                avatarUrl: schedule.counselor.avatarUrl ?? undefined,
+                              }
+                            : undefined,
+                          rating: schedule.rating
+                            ? {
+                                stars: Number(schedule.rating.stars),
+                                description: String(schedule.rating.description),
+                              }
+                            : undefined,
+                        }))
+                        .map(renderScheduleCard)}
                     </InfiniteScroll>
                   ) : (
                     <div className="text-center py-8 bg-white/5 rounded-xl border border-white/10">
@@ -2033,7 +2224,7 @@ Terima kasih telah menggunakan layanan kami.
                     <Controller
                       name="date"
                       control={scheduleControl}
-                      defaultValue={date}
+                      defaultValue={date?.toISOString()}
                       render={({ field }) => (
                         <div
                           className="p-2 bg-white/5 border border-white/20 rounded-md text-white flex items-center justify-between cursor-pointer"
@@ -2339,7 +2530,6 @@ Terima kasih telah menggunakan layanan kami.
         <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-indigo-500/10 rounded-full filter blur-3xl"></div>
       </motion.div>
 
-      {/* Floating elements */}
       <motion.div
         className="absolute top-1/4 right-10 w-16 h-16 rounded-full border border-blue-400/20 backdrop-blur-sm z-0"
         animate={{
@@ -2368,7 +2558,6 @@ Terima kasih telah menggunakan layanan kami.
       />
 
       <div className="container mx-auto px-4 max-w-6xl relative z-10">
-        {/* Header with title and actions */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -2386,7 +2575,6 @@ Terima kasih telah menggunakan layanan kami.
               </div>
 
               <div className="flex flex-wrap gap-2">
-                {/* Notifications */}
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -2429,7 +2617,6 @@ Terima kasih telah menggunakan layanan kami.
                   </PopoverContent>
                 </Popover>
 
-                {/* Search button */}
                 <Button
                   variant="outline"
                   size="icon"
@@ -2439,7 +2626,6 @@ Terima kasih telah menggunakan layanan kami.
                   <Search className="h-5 w-5" />
                 </Button>
 
-                {/* Filter button */}
                 <Button
                   variant="outline"
                   size="icon"
@@ -2449,7 +2635,6 @@ Terima kasih telah menggunakan layanan kami.
                   <Filter className="h-5 w-5" />
                 </Button>
 
-                {/* View toggle */}
                 <div className="flex rounded-lg overflow-hidden border border-white/20">
                   <Button
                     variant={viewMode === "list" ? "default" : "ghost"}
@@ -2477,7 +2662,6 @@ Terima kasih telah menggunakan layanan kami.
                   </Button>
                 </div>
 
-                {/* Add schedule button */}
                 <Button
                   onClick={() => setIsAddScheduleOpen(true)}
                   className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border border-blue-400/30"
@@ -2487,7 +2671,6 @@ Terima kasih telah menggunakan layanan kami.
               </div>
             </div>
 
-            {/* Search bar (collapsible) */}
             <AnimatePresence>
               {isSearchOpen && (
                 <motion.div
@@ -2522,7 +2705,6 @@ Terima kasih telah menggunakan layanan kami.
               )}
             </AnimatePresence>
 
-            {/* Filter options (collapsible) */}
             <AnimatePresence>
               {isFilterOpen && (
                 <motion.div
@@ -2583,9 +2765,7 @@ Terima kasih telah menggunakan layanan kami.
           </div>
         </motion.div>
 
-        {/* Main content */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Calendar and Info Section */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -2637,7 +2817,6 @@ Terima kasih telah menggunakan layanan kami.
                     </div>
                   </div>
 
-                  {/* Today's schedules */}
                   <div className="mt-6">
                     <h3 className="text-white font-medium mb-2">Jadwal Hari Ini</h3>
                     <div className="space-y-2">
@@ -2649,7 +2828,19 @@ Terima kasih telah menggunakan layanan kami.
                               key={schedule.id}
                               className="p-2 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-colors cursor-pointer"
                               onClick={() => {
-                                setSelectedSchedule(schedule)
+                                setSelectedSchedule({
+                                  ...schedule,
+                                  counselor: schedule.counselor ? {
+                                    id: String(schedule.counselor.id),
+                                    name: String(schedule.counselor.name),
+                                    adminEmail: String(schedule.counselor.adminEmail),
+                                    avatarUrl: schedule.counselor.avatarUrl || undefined
+                                  } : undefined,
+                                  rating: schedule.rating ? {
+                                    stars: Number(schedule.rating.stars),
+                                    description: String(schedule.rating.description)
+                                  } : undefined
+                                })
                                 setIsDetailOpen(true)
                               }}
                             >
@@ -2667,7 +2858,6 @@ Terima kasih telah menggunakan layanan kami.
                     </div>
                   </div>
 
-                  {/* Upcoming schedules */}
                   {upcomingSchedules.length > 0 && (
                     <div className="mt-6">
                       <h3 className="text-white font-medium mb-2">Jadwal Mendatang</h3>
@@ -2679,7 +2869,23 @@ Terima kasih telah menggunakan layanan kami.
                               key={schedule.id}
                               className="p-2 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-colors cursor-pointer"
                               onClick={() => {
-                                setSelectedSchedule(schedule)
+                                setSelectedSchedule({
+                                  ...schedule,
+                                  counselor: schedule.counselor 
+                                    ? {
+                                        id: String(schedule.counselor.id),
+                                        name: String(schedule.counselor.name),
+                                        adminEmail: String(schedule.counselor.adminEmail),
+                                        avatarUrl: schedule.counselor.avatarUrl || undefined 
+                                      }
+                                    : undefined,
+                                  rating: schedule.rating
+                                    ? {
+                                        stars: Number(schedule.rating.stars),
+                                        description: String(schedule.rating.description)
+                                      }
+                                    : undefined
+                                })
                                 setIsDetailOpen(true)
                               }}
                             >
@@ -2702,7 +2908,6 @@ Terima kasih telah menggunakan layanan kami.
             {viewMode === "calendar" && renderCalendarView()}
           </motion.div>
 
-          {/* Schedules Section */}
           {viewMode === "list" && (
             <motion.div
               initial={{ opacity: 0, x: 20 }}
@@ -2778,7 +2983,25 @@ Terima kasih telah menggunakan layanan kami.
                               <Loader2 className="h-8 w-8 text-blue-300 animate-spin" />
                             </div>
                           ) : pendingSchedules.length > 0 ? (
-                            pendingSchedules.map(renderScheduleCard)
+                            pendingSchedules
+                              .map((schedule) => ({
+                                ...schedule,
+                                counselor: schedule.counselor
+                                  ? {
+                                      id: String(schedule.counselor.id),
+                                      name: String(schedule.counselor.name),
+                                      adminEmail: String(schedule.counselor.adminEmail),
+                                      avatarUrl: schedule.counselor.avatarUrl || undefined,
+                                    }
+                                  : undefined,
+                                rating: schedule.rating
+                                  ? {
+                                      stars: Number(schedule.rating.stars),
+                                      description: String(schedule.rating.description),
+                                    }
+                                  : undefined,
+                              }))
+                              .map(renderScheduleCard)
                           ) : (
                             <div className="text-center py-8 text-blue-200 bg-white/5 rounded-lg border border-white/10">
                               <Clock3 className="h-12 w-12 mx-auto text-blue-300/50 mb-3" />
@@ -2823,7 +3046,25 @@ Terima kasih telah menggunakan layanan kami.
                               <Loader2 className="h-8 w-8 text-blue-300 animate-spin" />
                             </div>
                           ) : acceptedSchedules.length > 0 ? (
-                            acceptedSchedules.map(renderScheduleCard)
+                            acceptedSchedules
+                              .map((schedule) => ({
+                                ...schedule,
+                                counselor: schedule.counselor
+                                  ? {
+                                      id: String(schedule.counselor.id),
+                                      name: String(schedule.counselor.name),
+                                      adminEmail: String(schedule.counselor.adminEmail),
+                                      avatarUrl: schedule.counselor.avatarUrl ?? undefined,
+                                    }
+                                  : undefined,
+                                rating: schedule.rating
+                                  ? {
+                                      stars: Number(schedule.rating.stars),
+                                      description: String(schedule.rating.description),
+                                    }
+                                  : undefined,
+                              }))
+                              .map(renderScheduleCard)
                           ) : (
                             <div className="text-center py-8 text-blue-200 bg-white/5 rounded-lg border border-white/10">
                               <CheckCircle className="h-12 w-12 mx-auto text-blue-300/50 mb-3" />
@@ -2860,7 +3101,25 @@ Terima kasih telah menggunakan layanan kami.
                               <Loader2 className="h-8 w-8 text-blue-300 animate-spin" />
                             </div>
                           ) : finishedSchedules.length > 0 ? (
-                            finishedSchedules.map(renderScheduleCard)
+                            finishedSchedules
+                              .map((schedule) => ({
+                                ...schedule,
+                                counselor: schedule.counselor
+                                  ? {
+                                      id: String(schedule.counselor.id),
+                                      name: String(schedule.counselor.name),
+                                      adminEmail: String(schedule.counselor.adminEmail),
+                                      avatarUrl: schedule.counselor.avatarUrl || undefined,
+                                    }
+                                  : undefined,
+                                rating: schedule.rating
+                                  ? {
+                                      stars: Number(schedule.rating.stars),
+                                      description: String(schedule.rating.description),
+                                    }
+                                  : undefined,
+                              }))
+                              .map(renderScheduleCard)
                           ) : (
                             <div className="text-center py-8 text-blue-200 bg-white/5 rounded-lg border border-white/10">
                               <Star className="h-12 w-12 mx-auto text-blue-300/50 mb-3" />
@@ -2877,162 +3136,160 @@ Terima kasih telah menggunakan layanan kami.
           )}
         </div>
 
-        {/* Add Schedule Dialog */}
-       <Dialog open={isAddScheduleOpen} onOpenChange={setIsAddScheduleOpen}>
-  <DialogContent className="sm:max-w-[500px] bg-gradient-to-br from-blue-900 to-blue-950 text-white border border-white/20 backdrop-blur-md">
-    <DialogHeader>
-      <VisuallyHidden>
-        <DialogTitle>Tambah Jadwal Baru</DialogTitle> {/* Only one title inside VisuallyHidden */}
-      </VisuallyHidden>
-      <DialogDescription className="text-blue-200">
-        Masukkan detail jadwal konsultasi baru di sini.
-      </DialogDescription>
-    </DialogHeader>
+        <Dialog open={isAddScheduleOpen} onOpenChange={setIsAddScheduleOpen}>
+          <DialogContent className="sm:max-w-[500px] bg-gradient-to-br from-blue-900 to-blue-950 text-white border border-white/20 backdrop-blur-md">
+            <DialogHeader>
+              <VisuallyHidden>
+                <DialogTitle>Tambah Jadwal Baru</DialogTitle>
+              </VisuallyHidden>
+              <DialogDescription className="text-blue-200">
+                Masukkan detail jadwal konsultasi baru di sini.
+              </DialogDescription>
+            </DialogHeader>
 
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="title" className="text-blue-100">
-          Judul
-        </Label>
-        <Input
-          id="title"
-          placeholder="Masukkan judul jadwal"
-          {...register("title")}
-          className="bg-white/5 border-white/20 text-white placeholder:text-blue-200/50 focus:border-blue-400"
-        />
-        {errors.title && <p className="text-sm text-red-300">{errors.title.message}</p>}
-      </div>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="title" className="text-blue-100">
+                  Judul
+                </Label>
+                <Input
+                  id="title"
+                  placeholder="Masukkan judul jadwal"
+                  {...register("title")}
+                  className="bg-white/5 border-white/20 text-white placeholder:text-blue-200/50 focus:border-blue-400"
+                />
+                {errors.title && <p className="text-sm text-red-300">{errors.title.message}</p>}
+              </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="date" className="text-blue-100">
-            Tanggal
-          </Label>
-          <div className="relative">
-            <Controller
-              name="date"
-              control={scheduleControl}
-              defaultValue={date}
-              render={({ field }) => (
-                <div
-                  className="p-2 bg-white/5 border border-white/20 rounded-md text-white flex items-center justify-between cursor-pointer"
-                  onClick={() => document.getElementById("calendar-popup")?.click()}
-                >
-                  <span>{date ? format(date, "dd MMMM yyyy") : "Pilih tanggal"}</span>
-                  <CalendarIcon className="h-4 w-4 text-blue-300" />
-                  <Dialog>
-                    <DialogTrigger id="calendar-popup" className="hidden">
-                      Open
-                    </DialogTrigger>
-                    <DialogContent className="bg-gradient-to-br from-blue-900 to-blue-950 text-white border border-white/20 backdrop-blur-md">
-                      <Calendar
-                        mode="single"
-                        selected={date}
-                        onSelect={(newDate) => {
-                          setDate(newDate);
-                          field.onChange(newDate);
-                        }}
-                        className="rounded-md border border-white/10 bg-white/5 text-white"
-                      />
-                    </DialogContent>
-                  </Dialog>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="date" className="text-blue-100">
+                    Tanggal
+                  </Label>
+                  <div className="relative">
+                    <Controller
+                      name="date"
+                      control={scheduleControl}
+                      defaultValue={date?.toISOString()}
+                      render={({ field }) => (
+                        <div
+                          className="p-2 bg-white/5 border border-white/20 rounded-md text-white flex items-center justify-between cursor-pointer"
+                          onClick={() => document.getElementById("calendar-popup")?.click()}
+                        >
+                          <span>{date ? format(date, "dd MMMM yyyy") : "Pilih tanggal"}</span>
+                          <CalendarIcon className="h-4 w-4 text-blue-300" />
+                          <Dialog>
+                            <DialogTrigger id="calendar-popup" className="hidden">
+                              Open
+                            </DialogTrigger>
+                            <DialogContent className="bg-gradient-to-br from-blue-900 to-blue-950 text-white border border-white/20 backdrop-blur-md">
+                              <Calendar
+                                mode="single"
+                                selected={date}
+                                onSelect={(newDate) => {
+                                  setDate(newDate)
+                                  field.onChange(newDate)
+                                }}
+                                className="rounded-md border border-white/10 bg-white/5 text-white"
+                              />
+                            </DialogContent>
+                          </Dialog>
+                        </div>
+                      )}
+                    />
+                  </div>
                 </div>
-              )}
-            />
-          </div>
-        </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="time" className="text-blue-100">
-            Waktu
-          </Label>
-          <Input
-            id="time"
-            type="time"
-            {...register("time")}
-            className="bg-white/5 border-white/20 text-white focus:border-blue-400"
-          />
-          {errors.time && <p className="text-sm text-red-300">{errors.time.message}</p>}
-        </div>
-      </div>
+                <div className="space-y-2">
+                  <Label htmlFor="time" className="text-blue-100">
+                    Waktu
+                  </Label>
+                  <Input
+                    id="time"
+                    type="time"
+                    {...register("time")}
+                    className="bg-white/5 border-white/20 text-white focus:border-blue-400"
+                  />
+                  {errors.time && <p className="text-sm text-red-300">{errors.time.message}</p>}
+                </div>
+              </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="address" className="text-blue-100">
-          Lokasi
-        </Label>
-        <Input
-          id="address"
-          placeholder="Masukkan alamat konsultasi atau 'Online'"
-          {...register("address")}
-          className="bg-white/5 border-white/20 text-white placeholder:text-blue-200/50 focus:border-blue-400"
-        />
-        {errors.address && <p className="text-sm text-red-300">{errors.address.message}</p>}
-      </div>
+              <div className="space-y-2">
+                <Label htmlFor="address" className="text-blue-100">
+                  Lokasi
+                </Label>
+                <Input
+                  id="address"
+                  placeholder="Masukkan alamat konsultasi atau 'Online'"
+                  {...register("address")}
+                  className="bg-white/5 border-white/20 text-white placeholder:text-blue-200/50 focus:border-blue-400"
+                />
+                {errors.address && <p className="text-sm text-red-300">{errors.address.message}</p>}
+              </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="counselor" className="text-blue-100">
-          Konselor
-        </Label>
-        <select
-          id="counselor"
-          {...register("counselor_id")}
-          className="w-full border rounded-md p-2 bg-white/5 border-white/20 text-white focus:border-blue-400"
-        >
-          <option value="">Pilih Konselor</option>
-          {counselors.map((counselor) => (
-            <option key={counselor.id} value={counselor.id}>
-              {counselor.name}
-            </option>
-          ))}
-        </select>
-        {errors.counselor_id && <p className="text-sm text-red-300">{errors.counselor_id.message}</p>}
-      </div>
+              <div className="space-y-2">
+                <Label htmlFor="counselor" className="text-blue-100">
+                  Konselor
+                </Label>
+                <select
+                  id="counselor"
+                  {...register("counselor_id")}
+                  className="w-full border rounded-md p-2 bg-white/5 border-white/20 text-white focus:border-blue-400"
+                >
+                  <option value="">Pilih Konselor</option>
+                  {counselors.map((counselor) => (
+                    <option key={counselor.id} value={counselor.id}>
+                      {counselor.name}
+                    </option>
+                  ))}
+                </select>
+                {errors.counselor_id && <p className="text-sm text-red-300">{errors.counselor_id.message}</p>}
+              </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="description" className="text-blue-100">
-          Deskripsi
-        </Label>
-        <Input
-          id="description"
-          placeholder="Masukkan deskripsi jadwal"
-          {...register("description")}
-          className="bg-white/5 border-white/20 text-white placeholder:text-blue-200/50 focus:border-blue-400"
-        />
-        {errors.description && <p className="text-sm text-red-300">{errors.description.message}</p>}
-      </div>
+              <div className="space-y-2">
+                <Label htmlFor="description" className="text-blue-100">
+                  Deskripsi
+                </Label>
+                <Input
+                  id="description"
+                  placeholder="Masukkan deskripsi jadwal"
+                  {...register("description")}
+                  className="bg-white/5 border-white/20 text-white placeholder:text-blue-200/50 focus:border-blue-400"
+                />
+                {errors.description && <p className="text-sm text-red-300">{errors.description.message}</p>}
+              </div>
 
-      <DialogFooter>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => setIsAddScheduleOpen(false)}
-          className="bg-white/10 border-white/20 text-blue-100 hover:bg-white/20 hover:text-white"
-        >
-          Batal
-        </Button>
-        <Button
-          type="submit"
-          className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border border-blue-400/30"
-        >
-          Tambah Jadwal
-        </Button>
-      </DialogFooter>
-    </form>
-  </DialogContent>
-</Dialog>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsAddScheduleOpen(false)}
+                  className="bg-white/10 border-white/20 text-blue-100 hover:bg-white/20 hover:text-white"
+                >
+                  Batal
+                </Button>
+                <Button
+                  type="submit"
+                  className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border border-blue-400/30"
+                >
+                  Tambah Jadwal
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
 
-        {/* Reschedule Dialog */}
         <Dialog open={isRescheduleOpen} onOpenChange={setIsRescheduleOpen}>
           {rescheduleData && (
             <DialogContent className="sm:max-w-[425px] bg-gradient-to-br from-blue-900 to-blue-950 text-white border border-white/20 backdrop-blur-md">
               <DialogHeader>
-          <VisuallyHidden>
-            <DialogTitle>Reschedule Jadwal</DialogTitle>
-          </VisuallyHidden>
-          <DialogTitle className="text-white">Reschedule Jadwal</DialogTitle>
-          <DialogDescription className="text-blue-200">
-            Masukkan tanggal dan waktu baru untuk jadwal ini.
-          </DialogDescription>
+                <VisuallyHidden>
+                  <DialogTitle>Reschedule Jadwal</DialogTitle>
+                </VisuallyHidden>
+                <DialogTitle className="text-white">Reschedule Jadwal</DialogTitle>
+                <DialogDescription className="text-blue-200">
+                  Masukkan tanggal dan waktu baru untuk jadwal ini.
+                </DialogDescription>
               </DialogHeader>
               <form className="space-y-4">
                 <div className="space-y-2">
@@ -3117,7 +3374,6 @@ Terima kasih telah menggunakan layanan kami.
           )}
         </Dialog>
 
-        {/* Rating Dialog */}
         <Dialog
           open={ratingData.open}
           onOpenChange={(open) => {
@@ -3130,13 +3386,13 @@ Terima kasih telah menggunakan layanan kami.
           {ratingData.open && (
             <DialogContent className="sm:max-w-[425px] bg-gradient-to-br from-blue-900 to-blue-950 text-white border border-white/20 backdrop-blur-md">
               <DialogHeader>
-              <VisuallyHidden>
-                <DialogTitle>Beri Rating</DialogTitle>
-              </VisuallyHidden>
-              <DialogTitle className="text-white">Beri Rating</DialogTitle>
-              <DialogDescription className="text-blue-200">
-                Berikan rating dan deskripsi konsultasi Anda.
-              </DialogDescription>
+                <VisuallyHidden>
+                  <DialogTitle>Beri Rating</DialogTitle>
+                </VisuallyHidden>
+                <DialogTitle className="text-white">Beri Rating</DialogTitle>
+                <DialogDescription className="text-blue-200">
+                  Berikan rating dan deskripsi konsultasi Anda.
+                </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleSubmitRating(onSubmitRating)} className="space-y-4">
                 <div className="space-y-2">
@@ -3198,25 +3454,23 @@ Terima kasih telah menggunakan layanan kami.
           )}
         </Dialog>
 
-        {/* Schedule Detail Dialog */}
         <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
           {selectedSchedule && (
             <DialogContent className="sm:max-w-[500px] bg-gradient-to-br from-blue-900 to-blue-950 text-white border border-white/20 backdrop-blur-md">
               <DialogHeader>
-          <VisuallyHidden>
-            <DialogTitle>Detail Jadwal</DialogTitle>
-          </VisuallyHidden>
-          <DialogTitle className="text-white">Detail Jadwal</DialogTitle>
-          <DialogDescription className="text-blue-200">
-            Informasi lengkap tentang jadwal konsultasi
-          </DialogDescription>
+                <VisuallyHidden>
+                  <DialogTitle>Detail Jadwal</DialogTitle>
+                </VisuallyHidden>
+                <DialogTitle className="text-white">Detail Jadwal</DialogTitle>
+                <DialogDescription className="text-blue-200">
+                  Informasi lengkap tentang jadwal konsultasi
+                </DialogDescription>
               </DialogHeader>
               {renderScheduleDetail(selectedSchedule)}
             </DialogContent>
           )}
         </Dialog>
 
-        {/* Notifications Popover for Desktop */}
         <Popover>
           <PopoverTrigger asChild>
             <Button

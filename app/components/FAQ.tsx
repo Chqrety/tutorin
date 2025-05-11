@@ -46,7 +46,16 @@ const faqs = [
 
 const categories = [...new Set(faqs.map((faq) => faq.category))]
 
-const FAQItem = ({ question, answer, category, isOpen, toggleOpen, index }) => {
+interface FAQItemProps {
+  question: string;
+  answer: string;
+  category: string;
+  isOpen: boolean;
+  toggleOpen: () => void;
+  index: number;
+}
+
+const FAQItem: React.FC<FAQItemProps> = ({ question, answer, category, isOpen, toggleOpen, index }) => {
   const [faqRef, faqInView] = useInView({
     triggerOnce: true,
     threshold: 0.3,
@@ -108,7 +117,7 @@ const FAQItem = ({ question, answer, category, isOpen, toggleOpen, index }) => {
 }
 
 const FAQ = () => {
-  const [openIndex, setOpenIndex] = useState(null)
+  const [openIndex, setOpenIndex] = useState<number | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [activeCategory, setActiveCategory] = useState("Semua")
   const [sectionRef, sectionInView] = useInView({
@@ -116,9 +125,13 @@ const FAQ = () => {
     threshold: 0.1,
   })
 
-  const toggleFAQ = (index) => {
-    setOpenIndex(openIndex === index ? null : index)
+  interface FAQToggleProps {
+    index: number | null;
   }
+
+  const toggleFAQ = (index: number): void => {
+    setOpenIndex(openIndex === index ? null : index);
+  };
 
   const filteredFaqs = faqs.filter((faq) => {
     const matchesSearch =

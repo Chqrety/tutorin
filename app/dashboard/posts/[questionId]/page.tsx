@@ -112,8 +112,8 @@ export default function StackOverflowPostPage() {
 
         if (aError) throw aError
 
-        setQuestion(questionData as QuestionType)
-        setAnswers((answersData as AnswerType[]) || [])
+        setQuestion(questionData as unknown as QuestionType)
+        setAnswers((answersData as unknown as AnswerType[]) || [])
       } catch (err) {
         console.error("Error fetching question/answers:", err)
         setQuestion(null)

@@ -24,7 +24,7 @@ export default function DashboardLayout({
   }, [router])
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-gray-100 fixed w-full" >
       <DesktopSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
     

@@ -147,12 +147,12 @@ export default function StackOverflowPostPage() {
 
         allComments.forEach((comment) => {
           if (!comment.parent_id) {
-            questionComments.push(comment as CommentType)
+            questionComments.push(comment as unknown as CommentType)
           } else {
             if (!commentReplies[comment.parent_id]) {
               commentReplies[comment.parent_id] = []
             }
-            commentReplies[comment.parent_id].push(comment as CommentType)
+            commentReplies[comment.parent_id].push(comment as unknown as CommentType)
           }
         })
 
@@ -164,7 +164,7 @@ export default function StackOverflowPostPage() {
           }))
         }
 
-        setQuestion(questionData as QuestionType)
+        setQuestion(questionData as unknown as QuestionType)
         setQuestionComments(addRepliesToComments(questionComments))
       } catch (err) {
         console.error("Error fetching question/comments:", err)
@@ -252,7 +252,7 @@ export default function StackOverflowPostPage() {
       console.error("Error adding question comment:", error?.message)
       return
     }
-    setQuestionComments((prev) => [...prev, data])
+    setQuestionComments((prev) => [...prev, data as unknown as CommentType])
     setQuestionCommentText("")
     setQuestionCommentOpen(false)
   }
@@ -301,15 +301,15 @@ export default function StackOverflowPostPage() {
     }
 
     setQuestionComments((prev) =>
-      prev.map((comment) =>
-        comment.id === parentId
-          ? {
-              ...comment,
-              replies: comment.replies ? [...comment.replies, data] : [data],
-            }
-          : comment,
-      ),
-    )
+          prev.map((comment) =>
+            comment.id === parentId
+              ? {
+                  ...comment,
+                  replies: comment.replies ? [...comment.replies, data as unknown as CommentType] : [data as unknown as CommentType],
+                }
+              : comment,
+          ),
+        )
     setReplyForms((prev) => ({ ...prev, [parentId]: false }))
     setReplyTexts((prev) => ({ ...prev, [parentId]: "" }))
   }
