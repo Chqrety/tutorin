@@ -34,5 +34,8 @@ export function useWebPush(enabled: boolean) {
         console.error('Error register Web‑Push:', err);
       }
     })();
+    console.log('[push] permission before:', Notification.permission);
+
+
   }, [enabled]);
 }

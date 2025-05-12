@@ -23,8 +23,9 @@ export default function DashboardLayout({
       router.push("/login") // Redirect ke halaman login jika tidak ada sesi
     }
   }, [router])
-   const { session } = useSessionContext();
-  useWebPush(!!session);
+ 
+
+
 
   return (
     <div className="flex h-screen bg-gray-100 fixed w-full" >

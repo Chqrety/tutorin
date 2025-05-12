@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { motion } from "framer-motion"
-import { Home, Calendar, MessageSquare, Clock, Settings, LogOut, FileText, ChevronRight, Menu, X } from "lucide-react"
+import { Home, Calendar, MessageSquare, Clock, Settings, LogOut, FileText, ChevronRight, Menu, MessageCircleQuestion } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetTrigger, SheetContent } from "@/components/ui/sheet"
 
@@ -14,8 +14,8 @@ const menuItems = [
   { icon: Calendar, label: "Jadwal", href: "/dashboard/jadwal" },
   { icon: MessageSquare, label: "Konsultasi", href: "/dashboard/konsultasi" },
   { icon: FileText, label: "Posts", href: "/dashboard/posts" },
-  { icon: Clock, label: "Riwayat", href: "/dashboard/riwayat" },
-  { icon: Settings, label: "Pengaturan", href: "/dashboard/pengaturan" },
+ 
+  { icon: Settings, label: "Pengaturan", href: "/dashboard/profile" },
 ]
 
 export default function Sidebar() {
@@ -32,8 +32,8 @@ export default function Sidebar() {
 
   // Menu Question
   const questionMenu = {
-    icon: FileText,
-    label: "Question",
+    icon: MessageCircleQuestion,
+    label: "Forum",
     href: userSession ? "/questions" : "/login",
   }
 

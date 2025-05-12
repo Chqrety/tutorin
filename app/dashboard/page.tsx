@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useMediaQuery } from "react-responsive"
 import { supabase } from "@/lib/supabase"
 import { format, isToday, isFuture, isPast, addDays, isThisWeek, isThisMonth } from "date-fns"
-import { BarChart, Calendar, Clock, Home, Settings, Bell, CalendarDays, User, CheckCircle, AlertCircle, Clock3, Star, ArrowUpRight, CalendarPlus2Icon as CalendarIcon2, PieChart, Activity, Users, Plus, ChevronRight, RefreshCw, Search,MessageCircle } from 'lucide-react'
+import { BarChart, Calendar, Clock, Home, Settings, Bell, CalendarDays, User, CheckCircle, AlertCircle, Clock3, Star, ArrowUpRight, CalendarPlus2Icon ,LogOut as CalendarIcon2, PieChart, Activity, Users, Plus, ChevronRight, RefreshCw, Search,MessageCircle, LogOut } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -322,8 +322,8 @@ export default function DashboardPage() {
     setActiveBottomTab(tab)
     if (isClient) { // Cek bahwa ini hanya jalan di client
       switch (tab) {
-        case "home":
-          router.push("/dashboard") // Ganti dengan rute halaman yang sesuai
+        case "logout":
+          router.push("/logout") // Ganti dengan rute halaman yang sesuai
           break
         case "konsultasi":
           router.push("/dashboard/konsultasi") // Ganti dengan rute halaman yang sesuai
@@ -678,12 +678,12 @@ export default function DashboardPage() {
         <Button
           variant="ghost"
           className={`flex flex-col items-center gap-1 h-auto py-2 ${
-            activeBottomTab === "home" ? "text-white" : "text-blue-200"
+            activeBottomTab === "logout" ? "text-white" : "text-blue-200"
           }`}
-          onClick={() => handleTabClick("home")}
+          onClick={() => handleTabClick("logout")}
         >
-          <Home className="h-5 w-5" />
-          <span className="text-xs">Home</span>
+          <LogOut className="h-5 w-5 " />
+          <span className="text-xs">logout</span>
         </Button>
         <Button
           variant="ghost"
@@ -1285,12 +1285,12 @@ export default function DashboardPage() {
             <Button
               variant="ghost"
               className={`flex flex-col items-center gap-1 h-auto py-2 ${
-                activeBottomTab === "home" ? "text-white" : "text-blue-200"
+                activeBottomTab === "logout" ? "text-white" : "text-blue-200"
               }`}
-              onClick={() => setActiveBottomTab("home")}
+              onClick={() => setActiveBottomTab("logout")}
             >
-              <Home className="h-5 w-5" />
-              <span className="text-xs">Home</span>
+              <LogOut className="h-5 w-5" />
+              <span className="text-xs">logout</span>
             </Button>
             <Button
               variant="ghost"

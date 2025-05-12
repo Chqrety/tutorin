@@ -21,8 +21,7 @@ export default function AdminDashboardLayout({
       router.push("/admin/login")
     }
   }, [router])
-const { session } = useSessionContext();
-  useWebPush(!!session);
+
   return (
     <div className="flex h-screen bg-gray-100">
       <AdminSidebar />

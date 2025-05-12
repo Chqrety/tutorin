@@ -48,8 +48,17 @@ type Schedule = {
   description: string
   address: string
   counselor_id: string
+  user_id: string          
   status: string
+  user: {                 
+    email: string
+    full_name: string
+    profiles: {
+      avatar_url: string | null
+    }
+  }
 }
+
 
 type Counselor = {
   id: string
@@ -59,13 +68,7 @@ type Counselor = {
   years_of_experience: number
   created_at?: string
   updated_at?: string
-  user: {
-    email: string
-    full_name: string
-    profiles: {
-      avatar_url: string | null
-    }
-  }
+  
 }
 
 export default function JadwalAdminPage() {
@@ -80,6 +83,7 @@ export default function JadwalAdminPage() {
     address: string
   } | null>(null)
   const [selectedCounselor, setSelectedCounselor] = useState<Counselor | null>(null)
+   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [isLoading, setIsLoading] = useState(true)
@@ -143,44 +147,61 @@ export default function JadwalAdminPage() {
   }, [])
 
   // Fetch schedules after counselors are available
-  useEffect(() => {
-    const fetchSchedules = async () => {
-      if (counselors.length === 0) return
+  // --- useEffect kedua: ambil jadwal setelah counselors tersedia ---
+useEffect(() => {
+  const fetchSchedules = async () => {
+    if (counselors.length === 0) return
 
-      try {
-        setIsLoading(true)
-        // Get all counselor IDs
-        const counselorIds = counselors.map((c) => c.id)
+    try {
+      setIsLoading(true)
 
-        const { data, error } = await supabase.from("schedules").select("*").in("counselor_id", counselorIds)
+      const counselorIds = counselors.map((c) => c.id)
 
-        if (error) {
-          console.error("Failed to fetch schedules:", error)
-          return
-        }
+      const { data, error } = await supabase
+        .from("schedules")
+        .select(`
+          id,
+          date,
+          time,
+          title,
+          description,
+          address,
+          counselor_id,
+          user_id,
+          status,
+          user:v_users(email, full_name, profiles(avatar_url))      -- ⬅️  JOIN ke view publik
+        `)
+        .in("counselor_id", counselorIds)
 
-        // Transform data to match our Schedule type
-        const transformedData = data.map((item: any) => ({
-          id: item.id,
-          date: new Date(item.date),
-          time: item.time,
-          title: item.title,
-          description: item.description,
-          address: item.address,
-          counselor_id: item.counselor_id,
-          status: item.status,
-        }))
-
-        setSchedules(transformedData)
-      } catch (err) {
-        console.error("Error fetching schedules:", err)
-      } finally {
-        setIsLoading(false)
+      if (error) {
+        console.error("Failed to fetch schedules:", error)
+        return
       }
-    }
 
-    fetchSchedules()
-  }, [counselors])
+      const transformed = data.map((item: any) => ({
+        id: item.id,
+        date: new Date(item.date),
+        time: item.time,
+        title: item.title,
+        description: item.description,
+        address: item.address,
+        counselor_id: item.counselor_id,
+        user_id: item.user_id,
+        status: item.status,
+        user: item.user                     // ⬅️ simpan info user
+      }))
+
+      setSchedules(transformed)
+    } catch (err) {
+      console.error("Error fetching schedules:", err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  fetchSchedules()
+}, [counselors])
+
 
   // Send email notification
   const sendEmailNotification = async (
@@ -261,16 +282,17 @@ export default function JadwalAdminPage() {
         return
       }
 
-      const counselor = counselors.find((c) => c.id === schedule.counselor_id)
-      if (!counselor) {
-        console.error("Related counselor not found.")
+    
+
+      const foundSchedule = schedules.find((s) => s.id === scheduleId)
+      if (!foundSchedule) {
+        console.error("Schedule not found")
         return
       }
 
-      // Send email notification
-      const subject = `Jadwal Konsultasi Di-reschedule: ${schedule.title || "Jadwal Konsultasi"}`
+      const subject = `Jadwal Konsultasi Di-reschedule: ${foundSchedule.title || "Jadwal Konsultasi"}`
       const bodyContent = `
-Hai ${counselor.user.full_name || "Pengguna"},
+Hai ${foundSchedule.user.full_name || "Pengguna"},
 
 Jadwal konsultasi Anda dengan ID ${scheduleId} telah di-reschedule oleh admin.
 
@@ -334,7 +356,7 @@ Tim TUTORIN
       // Send email notification
       const subject = `Jadwal Konsultasi Diterima: ${scheduleTitle}`
       const bodyContent = `
-Hai ${counselor.user.full_name || "Pengguna"},
+Hai ${schedules.find(s => s.id === scheduleId)?.user?.full_name || "Pengguna"},
 
 Jadwal konsultasi Anda dengan ID ${scheduleId} telah diterima oleh admin.
 
@@ -386,17 +408,16 @@ Tim TUTORIN
         console.error("Schedule not found after update.")
         return
       }
-
-      const counselor = counselors.find((c) => c.id === rejectedSchedule.counselor_id)
-      if (!counselor) {
-        console.error("Related counselor not found.")
+const foundSchedule = schedules.find((s) => s.id === scheduleId)
+      if (!foundSchedule) {
+        console.error("Schedule not found")
         return
       }
 
       // Send email notification
       const subject = `Jadwal Konsultasi Ditolak: ${scheduleTitle}`
       const bodyContent = `
-Hai ${counselor.user.full_name || "Pengguna"},
+Hai ${foundSchedule.user.full_name || "Pengguna"},
 
 Jadwal konsultasi Anda dengan ID ${scheduleId} telah ditolak oleh admin.
 
@@ -445,17 +466,16 @@ Tim TUTORIN
         console.error("Schedule not found after update.")
         return
       }
-
-      const counselor = counselors.find((c) => c.id === finishedSchedule.counselor_id)
-      if (!counselor) {
-        console.error("Related counselor not found.")
+const foundSchedule = schedules.find((s) => s.id === scheduleId)
+      if (!foundSchedule) {
+        console.error("Schedule not found")
         return
       }
 
       // Send email notification
       const subject = `Jadwal Konsultasi Selesai: ${scheduleTitle}`
       const bodyContent = `
-Hai ${counselor.user.full_name || "Pengguna"},
+Hai ${foundSchedule.user.full_name || "Pengguna"},
 
 Jadwal konsultasi Anda dengan ID ${scheduleId} telah ditandai sebagai selesai oleh admin.
 
@@ -711,43 +731,43 @@ Tim TUTORIN
                       <div className="flex justify-center items-center h-full">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                       </div>
-                    ) : counselors.length > 0 ? (
-                      <div className="p-2">
+                    ) : schedules.length > 0 ? (
+                        <div className="p-2">
                         {selectedCounselor && (
                           <Button
-                            variant="outline"
-                            onClick={() => setSelectedCounselor(null)}
-                            className="w-full mb-2 flex items-center justify-center gap-2 bg-blue-50 hover:bg-blue-100"
+                          variant="outline"
+                          onClick={() => setSelectedCounselor(null)}
+                          className="w-full mb-2 flex items-center justify-center gap-2 bg-blue-50 hover:bg-blue-100"
                           >
-                            <RotateCcw className="h-4 w-4" /> Tampilkan Semua
+                          <RotateCcw className="h-4 w-4" /> Tampilkan Semua
                           </Button>
                         )}
                         {counselors.map((counselor) => (
                           <div
-                            key={counselor.id}
-                            className={`mb-2 p-3 border rounded-lg flex items-center cursor-pointer transition-all ${
-                              selectedCounselor?.id === counselor.id
-                                ? "bg-blue-100 border-blue-300"
-                                : "hover:bg-gray-50"
-                            }`}
-                            onClick={() => setSelectedCounselor(counselor)}
+                          key={counselor.id}
+                          className={`mb-2 p-3 border rounded-lg flex items-center cursor-pointer transition-all ${
+                            selectedCounselor?.id === counselor.id
+                            ? "bg-blue-100 border-blue-300"
+                            : "hover:bg-gray-50"
+                          }`}
+                          onClick={() => setSelectedCounselor(counselor)}
                           >
-                            <Avatar className="h-10 w-10 mr-3 border">
-                              <AvatarImage src={counselor.user.profiles.avatar_url || ""} />
-                              <AvatarFallback className="bg-blue-100 text-blue-600">
-                                {counselor.user.full_name?.charAt(0) || "U"}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <p className="font-semibold">{counselor.user.full_name || "Belum diisi"}</p>
-                              <p className="text-xs text-gray-500">{counselor.user.email || "Belum diisi"}</p>
-                              {counselor.specialization && (
-                                <p className="text-xs text-blue-600 mt-1">{counselor.specialization}</p>
-                              )}
-                            </div>
+                          <Avatar className="h-10 w-10 mr-3 border">
+                            <AvatarImage src={schedules.find(s => s.counselor_id === counselor.id)?.user?.profiles?.avatar_url || ""} />
+                            <AvatarFallback className="bg-blue-100 text-blue-600">
+                            {schedules.find(s => s.counselor_id === counselor.id)?.user?.full_name?.charAt(0) || "U"}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-semibold">{schedules.find(s => s.counselor_id === counselor.id)?.user?.full_name || "Belum diisi"}</p>
+                            <p className="text-xs text-gray-500">{schedules.find(s => s.counselor_id === counselor.id)?.user?.email || "Belum diisi"}</p>
+                            {counselor.specialization && (
+                            <p className="text-xs text-blue-600 mt-1">{counselor.specialization}</p>
+                            )}
+                          </div>
                           </div>
                         ))}
-                      </div>
+                        </div>
                     ) : (
                       <div className="flex flex-col items-center justify-center h-full p-4">
                         <User className="h-12 w-12 text-gray-400 mb-2" />
@@ -765,7 +785,7 @@ Tim TUTORIN
               <CardHeader className="pb-2 bg-gradient-to-r from-blue-50 to-transparent">
                 <CardTitle className="flex items-center gap-2">
                   <CalendarIcon className="h-5 w-5 text-blue-500" />
-                  Jadwal Konsultasi {selectedCounselor ? `- ${selectedCounselor.user.full_name}` : ""}
+                  Jadwal Konsultasi {selectedSchedule ? `- ${selectedSchedule.user.full_name}` : ""}
                 </CardTitle>
                 <CardDescription>Kelola semua jadwal konsultasi</CardDescription>
               </CardHeader>
@@ -823,9 +843,9 @@ Tim TUTORIN
                                     <div className="flex items-center">
                                       {counselor && (
                                         <Avatar className="h-8 w-8 border">
-                                          <AvatarImage src={counselor.user.profiles.avatar_url || ""} />
+                                          <AvatarImage src={schedule.user.profiles.avatar_url || ""} />
                                           <AvatarFallback className="bg-blue-100 text-blue-600">
-                                            {counselor.user.full_name?.charAt(0) || "U"}
+                                            {schedule.user.full_name?.charAt(0) || "U"}
                                           </AvatarFallback>
                                         </Avatar>
                                       )}
@@ -843,9 +863,9 @@ Tim TUTORIN
                                         <div className="flex items-start gap-2 mb-2">
                                           <User className="h-4 w-4 text-muted-foreground mt-0.5" />
                                           <div>
-                                            <span className="text-sm font-medium">{counselor.user.full_name}</span>
-                                            <p className="text-xs text-muted-foreground">{counselor.user.email}</p>
-                                          </div>
+    <span className="text-sm font-medium">{schedule.user.full_name}</span>
+    <p className="text-xs text-muted-foreground">{schedule.user.email}</p>
+  </div>
                                         </div>
                                       )}
                                     </div>
@@ -881,8 +901,8 @@ Tim TUTORIN
                                         size="sm"
                                         className="bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800 border-green-200"
                                         onClick={() => {
-                                          if (counselor && counselor.user.email && schedule.title) {
-                                            handleAccept(schedule.id, counselor.user.email, schedule.title)
+                                          if (counselor && schedule.user.email && schedule.title) {
+                                            handleAccept(schedule.id, schedule.user.email, schedule.title)
                                           } else {
                                             alert("Email pengguna atau judul jadwal tidak ditemukan.")
                                           }
@@ -895,8 +915,8 @@ Tim TUTORIN
                                         size="sm"
                                         className="bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800 border-red-200"
                                         onClick={() => {
-                                          if (counselor && counselor.user.email && schedule.title) {
-                                            handleReject(schedule.id, counselor.user.email, schedule.title)
+                                          if (counselor && schedule.user.email && schedule.title) {
+                                            handleReject(schedule.id, schedule.user.email, schedule.title)
                                           } else {
                                             alert("Email pengguna atau judul jadwal tidak ditemukan.")
                                           }
@@ -912,8 +932,8 @@ Tim TUTORIN
                                       size="sm"
                                       className="bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 border-blue-200"
                                       onClick={() => {
-                                        if (counselor && counselor.user.email && schedule.title) {
-                                          handleFinish(schedule.id, counselor.user.email, schedule.title)
+                                        if (counselor && schedule.user.email && schedule.title) {
+                                          handleFinish(schedule.id, schedule.user.email, schedule.title)
                                         } else {
                                           alert("Email pengguna atau judul jadwal tidak ditemukan.")
                                         }
@@ -987,9 +1007,9 @@ Tim TUTORIN
                                     <div className="flex items-center">
                                       {counselor && (
                                         <Avatar className="h-8 w-8 border">
-                                          <AvatarImage src={counselor.user.profiles.avatar_url || ""} />
+                                          <AvatarImage src={schedule.user.profiles.avatar_url || ""} />
                                           <AvatarFallback className="bg-blue-100 text-blue-600">
-                                            {counselor.user.full_name?.charAt(0) || "U"}
+                                            {schedule.user.full_name?.charAt(0) || "U"}
                                           </AvatarFallback>
                                         </Avatar>
                                       )}
@@ -1007,8 +1027,8 @@ Tim TUTORIN
                                         <div className="flex items-start gap-2 mb-2">
                                           <User className="h-4 w-4 text-muted-foreground mt-0.5" />
                                           <div>
-                                            <span className="text-sm font-medium">{counselor.user.full_name}</span>
-                                            <p className="text-xs text-muted-foreground">{counselor.user.email}</p>
+                                            <span className="text-sm font-medium">{schedule.user.full_name}</span>
+                                            <p className="text-xs text-muted-foreground">{schedule.user.email}</p>
                                           </div>
                                         </div>
                                       )}
@@ -1046,8 +1066,8 @@ Tim TUTORIN
                                         size="sm"
                                         className="bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800 border-green-200"
                                         onClick={() => {
-                                          if (counselor && counselor.user.email && schedule.title) {
-                                            handleAccept(schedule.id, counselor.user.email, schedule.title)
+                                          if (counselor && schedule.user.email && schedule.title) {
+                                            handleAccept(schedule.id, schedule.user.email, schedule.title)
                                           } else {
                                             alert("Email pengguna atau judul jadwal tidak ditemukan.")
                                           }
@@ -1060,8 +1080,8 @@ Tim TUTORIN
                                         size="sm"
                                         className="bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800 border-red-200"
                                         onClick={() => {
-                                          if (counselor && counselor.user.email && schedule.title) {
-                                            handleReject(schedule.id, counselor.user.email, schedule.title)
+                                          if (counselor && schedule.user.email && schedule.title) {
+                                            handleReject(schedule.id, schedule.user.email, schedule.title)
                                           } else {
                                             alert("Email pengguna atau judul jadwal tidak ditemukan.")
                                           }
@@ -1077,8 +1097,8 @@ Tim TUTORIN
                                       size="sm"
                                       className="bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 border-blue-200"
                                       onClick={() => {
-                                        if (counselor && counselor.user.email && schedule.title) {
-                                          handleFinish(schedule.id, counselor.user.email, schedule.title)
+                                        if (counselor && schedule.user.email && schedule.title) {
+                                          handleFinish(schedule.id, schedule.user.email, schedule.title)
                                         } else {
                                           alert("Email pengguna atau judul jadwal tidak ditemukan.")
                                         }
@@ -1149,9 +1169,9 @@ Tim TUTORIN
                                     <div className="flex items-center">
                                       {counselor && (
                                         <Avatar className="h-8 w-8 border">
-                                          <AvatarImage src={counselor.user.profiles.avatar_url || ""} />
+                                          <AvatarImage src={schedule.user.profiles.avatar_url || ""} />
                                           <AvatarFallback className="bg-blue-100 text-blue-600">
-                                            {counselor.user.full_name?.charAt(0) || "U"}
+                                            {schedule.user.full_name?.charAt(0) || "U"}
                                           </AvatarFallback>
                                         </Avatar>
                                       )}
@@ -1170,8 +1190,8 @@ Tim TUTORIN
                                         <div className="flex items-start gap-2 mb-2">
                                           <User className="h-4 w-4 text-muted-foreground mt-0.5" />
                                           <div>
-                                            <span className="text-sm font-medium">{counselor.user.full_name}</span>
-                                            <p className="text-xs text-muted-foreground">{counselor.user.email}</p>
+                                            <span className="text-sm font-medium">{schedule.user.full_name}</span>
+                                            <p className="text-xs text-muted-foreground">{schedule.user.email}</p>
                                           </div>
                                         </div>
                                       )}
@@ -1209,8 +1229,8 @@ Tim TUTORIN
                                         size="sm"
                                         className="bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800 border-green-200"
                                         onClick={() => {
-                                          if (counselor && counselor.user.email && schedule.title) {
-                                            handleAccept(schedule.id, counselor.user.email, schedule.title)
+                                          if (counselor && schedule.user.email && schedule.title) {
+                                            handleAccept(schedule.id, schedule.user.email, schedule.title)
                                           } else {
                                             alert("Email pengguna atau judul jadwal tidak ditemukan.")
                                           }
@@ -1223,8 +1243,8 @@ Tim TUTORIN
                                         size="sm"
                                         className="bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800 border-red-200"
                                         onClick={() => {
-                                          if (counselor && counselor.user.email && schedule.title) {
-                                            handleReject(schedule.id, counselor.user.email, schedule.title)
+                                          if (counselor && schedule.user.email && schedule.title) {
+                                            handleReject(schedule.id, schedule.user.email, schedule.title)
                                           } else {
                                             alert("Email pengguna atau judul jadwal tidak ditemukan.")
                                           }
@@ -1240,8 +1260,8 @@ Tim TUTORIN
                                       size="sm"
                                       className="bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 border-blue-200"
                                       onClick={() => {
-                                        if (counselor && counselor.user.email && schedule.title) {
-                                          handleFinish(schedule.id, counselor.user.email, schedule.title)
+                                        if (counselor && schedule.user.email && schedule.title) {
+                                          handleFinish(schedule.id, schedule.user.email, schedule.title)
                                         } else {
                                           alert("Email pengguna atau judul jadwal tidak ditemukan.")
                                         }
@@ -1311,9 +1331,9 @@ Tim TUTORIN
                                     <div className="flex items-center">
                                       {counselor && (
                                         <Avatar className="h-8 w-8 border">
-                                          <AvatarImage src={counselor.user.profiles.avatar_url || ""} />
+                                          <AvatarImage src={schedule.user.profiles.avatar_url || ""} />
                                           <AvatarFallback className="bg-blue-100 text-blue-600">
-                                            {counselor.user.full_name?.charAt(0) || "U"}
+                                            {schedule.user.full_name?.charAt(0) || "U"}
                                           </AvatarFallback>
                                         </Avatar>
                                       )}
@@ -1331,8 +1351,8 @@ Tim TUTORIN
                                         <div className="flex items-start gap-2 mb-2">
                                           <User className="h-4 w-4 text-muted-foreground mt-0.5" />
                                           <div>
-                                            <span className="text-sm font-medium">{counselor.user.full_name}</span>
-                                            <p className="text-xs text-muted-foreground">{counselor.user.email}</p>
+                                            <span className="text-sm font-medium">{schedule.user.full_name}</span>
+                                            <p className="text-xs text-muted-foreground">{schedule.user.email}</p>
                                           </div>
                                         </div>
                                       )}
@@ -1369,8 +1389,8 @@ Tim TUTORIN
                                         size="sm"
                                         className="bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800 border-green-200"
                                         onClick={() => {
-                                          if (counselor && counselor.user.email && schedule.title) {
-                                            handleAccept(schedule.id, counselor.user.email, schedule.title)
+                                          if (counselor && schedule.user.email && schedule.title) {
+                                            handleAccept(schedule.id, schedule.user.email, schedule.title)
                                           } else {
                                             alert("Email pengguna atau judul jadwal tidak ditemukan.")
                                           }
@@ -1383,8 +1403,8 @@ Tim TUTORIN
                                         size="sm"
                                         className="bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800 border-red-200"
                                         onClick={() => {
-                                          if (counselor && counselor.user.email && schedule.title) {
-                                            handleReject(schedule.id, counselor.user.email, schedule.title)
+                                          if (counselor && schedule.user.email && schedule.title) {
+                                            handleReject(schedule.id, schedule.user.email, schedule.title)
                                           } else {
                                             alert("Email pengguna atau judul jadwal tidak ditemukan.")
                                           }
@@ -1400,8 +1420,8 @@ Tim TUTORIN
                                       size="sm"
                                       className="bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 border-blue-200"
                                       onClick={() => {
-                                        if (counselor && counselor.user.email && schedule.title) {
-                                          handleFinish(schedule.id, counselor.user.email, schedule.title)
+                                        if (counselor && schedule.user.email && schedule.title) {
+                                          handleFinish(schedule.id, schedule.user.email, schedule.title)
                                         } else {
                                           alert("Email pengguna atau judul jadwal tidak ditemukan.")
                                         }
@@ -1514,7 +1534,7 @@ Tim TUTORIN
                       if (schedule) {
                         const counselor = counselors.find((c) => c.id === schedule.counselor_id)
                         if (counselor) {
-                          const userEmail = counselor.user.email
+                          const userEmail = schedule.user.email
                           handleReschedule(
                             rescheduleData.id,
                             rescheduleData.date,
