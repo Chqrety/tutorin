@@ -29,6 +29,7 @@ import { useToast } from "@/hooks/use-toast"
 import { ArrowLeft, Calendar, ChevronRight, Clock, History, Home, Info, Loader2, LogOut, Menu, MessageCircle, MessageSquare, PanelRightClose, Plus, Send, Settings, User, X  as  CalendarIcon2, X} from 'lucide-react'
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { cn } from "@/lib/utils"
+import { RealtimeChannel } from "@supabase/supabase-js"
 
 /* ------------------------------------------------------------------ */
 /*  Types & Helpers                                                   */
@@ -313,82 +314,96 @@ export default function UserKonsultasiPage() {
 
   /* ------------------------------------------------------------------ */
   /*  Realtime: new messages                                             */
+
   /* ------------------------------------------------------------------ */
   useEffect(() => {
-    if (!userId) return
+  if (processedMessageIds.size === 0 && consultations.length) {
+    const init = new Set<number>();
+    consultations.forEach(c => c.messages.forEach(m => init.add(m.id)));
+    setProcessedMessageIds(init);               // hanya satu kali
+  }
+}, [consultations]);                             // ← dependensi cukup consultations
 
-    // inisialisasi processed id
-    if (processedMessageIds.size === 0 && consultations.length) {
-      const init = new Set<number>()
-      consultations.forEach((c) => c.messages.forEach((m) => init.add(m.id)))
-      setProcessedMessageIds(init)
-    }
+/* ---------- 2. buat channel realtime satu kali ---------- */
 
-    const ch = supabase
-      .channel("msg-rt")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
-        const newMsg = payload.new as any
-        if (newMsg.sender === "user") return
-        if (processedMessageIds.has(newMsg.id)) return
-        setProcessedMessageIds((p) => new Set(p).add(newMsg.id))
+const msgChannelRef = useRef<RealtimeChannel | null>(null);
+
+useEffect(() => {
+  if (!userId) return;
+  if (msgChannelRef.current) return; // avoid recreating if exists
+
+  const ch = supabase
+    .channel("msg-rt")
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "messages" },
+      (payload) => {
+        const newMsg = payload.new as any;
+        if (newMsg.sender === "user") return;
+        if (processedMessageIds.has(newMsg.id)) return;
+
+        setProcessedMessageIds(prev => new Set(prev).add(newMsg.id));
 
         const message: Message = {
           id: newMsg.id,
           sender: newMsg.sender,
-          content: newMsg.content,
+          content: newMsg.content, 
           timestamp: new Date(newMsg.timestamp),
           full_name: newMsg.sender === "admin" ? newMsg.admins?.name || "Admin" : "Anda",
           avatar_url: newMsg.profiles?.avatar_url || "/placeholder.svg?height=40&width=40",
-          read: activeRef.current?.id === newMsg.consultation_id,
-        }
+          read: activeRef.current?.id === newMsg.consultation_id
+        };
 
-        setConsultations((prev) =>
-          prev.map((c) =>
+        setConsultations(prev =>
+          prev.map(c =>
             c.id === newMsg.consultation_id
               ? {
                   ...c,
                   messages: [...c.messages, message],
-                  hasNewMessage: activeRef.current?.id === c.id ? false : true,
+                  hasNewMessage: activeRef.current?.id !== c.id
                 }
-              : c,
-          ),
-        )
+              : c
+          )
+        );
 
         if (activeRef.current?.id === newMsg.consultation_id) {
-          setActiveConsultation((prev) => (prev ? { ...prev, messages: [...prev.messages, message] } : prev))
+          setActiveConsultation(prev => 
+            prev ? { ...prev, messages: [...prev.messages, message] } : prev
+          );
         } else {
           toast({
             title: "Pesan Baru",
-            description: `${message.full_name}: ${message.content.slice(0, 50)}${message.content.length > 50 ? "…" : ""}`,
+            description: `${message.full_name}: ${message.content.slice(0, 50)}${
+              message.content.length > 50 ? "..." : ""
+            }`,
             action: (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  const c = consultations.find((x) => x.id === newMsg.consultation_id)
+                  const c = consultations.find(x => x.id === newMsg.consultation_id);
                   if (c) {
-                    setActiveConsultation(c)
-                    setActiveTab("active")
+                    setActiveConsultation(c);
+                    setActiveTab("active");
                   }
                 }}
               >
                 Lihat
               </Button>
             ),
-          })
+          });
         }
-      })
-      .subscribe()
-
-    return () => {
-      // Handle cleanup synchronously
-      try {
-        supabase.removeChannel(ch)
-      } catch (err) {
-        console.error('Error removing channel:', err)
       }
-    }
-  }, [userId, consultations, processedMessageIds, toast])
+    )
+    .subscribe();
+
+  msgChannelRef.current = ch;
+
+  return () => {
+    supabase.removeChannel(ch);
+    msgChannelRef.current = null;
+  };
+}, [userId, processedMessageIds, consultations, toast, setActiveTab]);
 
   /* ------------------------------------------------------------------ */
   /*  Realtime: status update                                            */
@@ -590,10 +605,12 @@ export default function UserKonsultasiPage() {
   }
 
   /* filter and sort */
-  const filteredConsultations = useMemo(() => {
-    return consultations.sort((a, b) => new Date(b.created_at || "").getTime() - new Date(a.created_at || "").getTime())
-  }, [consultations])
-
+const filteredConsultations = useMemo(() => {
+  return [...consultations].sort(           // ← copy dulu!
+ (a, b) => new Date(b.created_at || "").getTime() -
+           new Date(a.created_at || "").getTime()
+   );
+ }, [consultations]);
   const actives = useMemo(() => filteredConsultations.filter((c) => c.status !== "closed"), [filteredConsultations])
 
   const history = useMemo(() => filteredConsultations.filter((c) => c.status === "closed"), [filteredConsultations])
