@@ -9,13 +9,51 @@ import { Calendar } from "@/components/ui/calendar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogTrigger,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { format, isToday, isFuture, isPast, addDays, isThisWeek } from "date-fns"
-import { Clock, Trash, Edit, CalendarIcon, MapPin, User, Star, Plus, CheckCircle, AlertCircle, Clock3, Search, Filter, CalendarDays, ChevronLeft, ChevronRight, X, Info, ArrowRight, Video, MessageSquare, Home, CalendarPlus2Icon as CalendarIcon2, Settings, Bell, MoreVertical, RefreshCw, Check, Loader2 } from 'lucide-react'
+import {
+  Clock,
+  Trash,
+  Edit,
+  CalendarIcon,
+  MapPin,
+  User,
+  Star,
+  Plus,
+  CheckCircle,
+  AlertCircle,
+  Clock3,
+  Search,
+  Filter,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  X,
+  Info,
+  ArrowRight,
+  Video,
+  MessageSquare,
+  Home,
+  CalendarPlus2Icon as CalendarIcon2,
+  Settings,
+  Bell,
+  MoreVertical,
+  RefreshCw,
+  Check,
+  Loader2,
+} from "lucide-react"
 import { useForm, Controller } from "react-hook-form"
 import { yupResolver } from "@hookform/resolvers/yup"
 import * as yup from "yup"
@@ -31,7 +69,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
-import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
 
 type SenderRole = "admin" | "user"
 
@@ -165,6 +203,7 @@ export default function JadwalPage() {
   const [touchStartX, setTouchStartX] = useState(0)
   const [activeBottomTab, setActiveBottomTab] = useState("schedule")
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
+ 
   const [notifications, setNotifications] = useState([
     {
       id: 1,
@@ -195,53 +234,10 @@ export default function JadwalPage() {
   const isMobile = useMediaQuery("(max-width: 768px)")
   const pageSize = 10
 
-  // Pull to refresh functionality
-  useEffect(() => {
-    const handleTouchStart = (e: TouchEvent) => {
-      if (scrollRef.current && scrollRef.current.scrollTop === 0) {
-        setTouchStartX(e.touches[0].clientY)
-      }
-    }
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (touchStartX && scrollRef.current && scrollRef.current.scrollTop === 0) {
-        const touchY = e.touches[0].clientY
-        const diff = touchY - touchStartX
-        
-        if (diff > 70 && !isRefreshing) {
-          setIsRefreshing(true)
-          refreshData()
-        }
-      }
-    }
-
-    const handleTouchEnd = () => {
-      setTouchStartX(0)
-    }
-
-    const scrollElement = scrollRef.current
-    if (scrollElement && isMobile) {
-      scrollElement.addEventListener('touchstart', handleTouchStart)
-      scrollElement.addEventListener('touchmove', handleTouchMove)
-      scrollElement.addEventListener('touchend', handleTouchEnd)
-    }
-
-    return () => {
-      if (scrollElement && isMobile) {
-        scrollElement.removeEventListener('touchstart', handleTouchStart)
-        scrollElement.removeEventListener('touchmove', handleTouchMove)
-        scrollElement.removeEventListener('touchend', handleTouchEnd)
-      }
-    }
-  }, [touchStartX, isRefreshing, isMobile])
-
+  // Refresh data function
   const refreshData = async () => {
     try {
-      await Promise.all([
-        mutatePending(),
-        mutateAccepted(),
-        mutateFinished()
-      ])
+      await Promise.all([mutatePending(), mutateAccepted(), mutateFinished()])
       toast.success("Data berhasil diperbarui")
     } catch (error) {
       toast.error("Gagal memperbarui data")
@@ -251,38 +247,45 @@ export default function JadwalPage() {
       }, 1000)
     }
   }
-
+  const handleRefresh = () => {
+    setIsRefreshing(true)
+    refreshData()
+  }
   // Swipe to action functionality
   const handleTouchStartSwipe = (e: React.TouchEvent, scheduleId: number) => {
-      if (!isSwipeEnabled) return
-      setTouchStartX(e.touches[0].clientX)
-      const schedule = allSchedules.find(s => s.id === scheduleId);
-      if (schedule) {
-        setSelectedSchedule({
-          ...schedule,
-          id: schedule.id,
-          counselor: schedule.counselor ? {
-            id: String(schedule.counselor.id),
-            name: String(schedule.counselor.name),
-            adminEmail: String(schedule.counselor.adminEmail),
-            avatarUrl: schedule.counselor.avatarUrl || undefined
-          } : undefined,
-          rating: schedule.rating ? {
-            stars: Number(schedule.rating.stars),
-            description: String(schedule.rating.description)
-          } : undefined
-        });
-      } else {
-        setSelectedSchedule(null);
-      }
+    if (!isSwipeEnabled) return
+    setTouchStartX(e.touches[0].clientX)
+    const schedule = allSchedules.find((s) => s.id === scheduleId)
+    if (schedule) {
+      setSelectedSchedule({
+        ...schedule,
+        id: schedule.id,
+        counselor: schedule.counselor
+          ? {
+              id: String(schedule.counselor.id),
+              name: String(schedule.counselor.name),
+              adminEmail: String(schedule.counselor.adminEmail),
+              avatarUrl: schedule.counselor.avatarUrl || undefined,
+            }
+          : undefined,
+        rating: schedule.rating
+          ? {
+              stars: Number(schedule.rating.stars),
+              description: String(schedule.rating.description),
+            }
+          : undefined,
+      })
+    } else {
+      setSelectedSchedule(null)
     }
+  }
 
   const handleTouchMoveSwipe = (e: React.TouchEvent) => {
     if (!isSwipeEnabled || !touchStartX) return
-    
+
     const touchX = e.touches[0].clientX
     const diff = touchX - touchStartX
-    
+
     if (Math.abs(diff) > 50) {
       setSwipeDirection(diff > 0 ? "right" : "left")
     } else {
@@ -296,7 +299,7 @@ export default function JadwalPage() {
       setSwipeDirection(null)
       return
     }
-    
+
     if (swipeDirection === "left") {
       // Left swipe action - Cancel/Delete
       if (selectedSchedule.status === "Pending" || selectedSchedule.status === "Accepted") {
@@ -308,13 +311,16 @@ export default function JadwalPage() {
       // Right swipe action - Confirm/Join
       if (selectedSchedule.status === "Pending" && !selectedSchedule.confirmed) {
         handleConfirmSchedule(selectedSchedule)
-      } else if ((selectedSchedule.status === "Pending" || selectedSchedule.status === "Accepted") && selectedSchedule.confirmed) {
+      } else if (
+        (selectedSchedule.status === "Pending" || selectedSchedule.status === "Accepted") &&
+        selectedSchedule.confirmed
+      ) {
         handleJoinConsultation(selectedSchedule)
       } else if (selectedSchedule.status === "Finished" && !selectedSchedule.rating) {
         setRatingData({ scheduleId: selectedSchedule.id, open: true })
       }
     }
-    
+
     setTouchStartX(0)
     setSwipeDirection(null)
   }
@@ -336,29 +342,29 @@ export default function JadwalPage() {
 
   // Schedule form
   const {
-      register,
-      handleSubmit,
-      formState: { errors },
-      reset,
-      control: scheduleControl,
-    } = useForm<{
-      date: string;
-      title: string;
-      time: string;
-      address: string;
-      description: string;
-      counselor_id: string;
-    }>({
-      resolver: yupResolver(schema as any),
-      defaultValues: {
-        date: date?.toISOString() || '',
-        title: '',
-        time: '',
-        address: '',
-        description: '',
-        counselor_id: '',
-      }
-    })
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+    control: scheduleControl,
+  } = useForm<{
+    date: string
+    title: string
+    time: string
+    address: string
+    description: string
+    counselor_id: string
+  }>({
+    resolver: yupResolver(schema as any),
+    defaultValues: {
+      date: date?.toISOString() || "",
+      title: "",
+      time: "",
+      address: "",
+      description: "",
+      counselor_id: "",
+    },
+  })
 
   // Get user ID from session
   useEffect(() => {
@@ -501,25 +507,25 @@ export default function JadwalPage() {
   const upcomingSchedules = useMemo(() => {
     const now = new Date()
     return allSchedules
-      .filter(s => {
-        const scheduleDate = new Date(`${format(s.date, 'yyyy-MM-dd')}T${s.time}`)
+      .filter((s) => {
+        const scheduleDate = new Date(`${format(s.date, "yyyy-MM-dd")}T${s.time}`)
         return scheduleDate > now && s.status !== "Canceled"
       })
       .sort((a, b) => {
-        const dateA = new Date(`${format(a.date, 'yyyy-MM-dd')}T${a.time}`)
-        const dateB = new Date(`${format(b.date, 'yyyy-MM-dd')}T${b.time}`)
+        const dateA = new Date(`${format(a.date, "yyyy-MM-dd")}T${a.time}`)
+        const dateB = new Date(`${format(b.date, "yyyy-MM-dd")}T${b.time}`)
         return dateA.getTime() - dateB.getTime()
       })
   }, [allSchedules])
 
   // Today's schedules
   const todaySchedules = useMemo(() => {
-    return allSchedules.filter(s => isToday(s.date))
+    return allSchedules.filter((s) => isToday(s.date))
   }, [allSchedules])
 
   // This week's schedules
   const thisWeekSchedules = useMemo(() => {
-    return allSchedules.filter(s => isThisWeek(s.date))
+    return allSchedules.filter((s) => isThisWeek(s.date))
   }, [allSchedules])
 
   // Filtered schedules based on search query and filters
@@ -533,7 +539,8 @@ export default function JadwalPage() {
         (schedule) =>
           schedule.title.toLowerCase().includes(query) ||
           schedule.description.toLowerCase().includes(query) ||
-          (schedule.counselor?.name.toLowerCase().includes(query) || false) ||
+          schedule.counselor?.name.toLowerCase().includes(query) ||
+          false ||
           schedule.address.toLowerCase().includes(query),
       )
     }
@@ -1021,9 +1028,7 @@ Terima kasih telah menggunakan layanan kami.
 
   // Mark notification as read
   const markNotificationAsRead = (id: number) => {
-    setNotifications(notifications.map(n => 
-      n.id === id ? { ...n, read: true } : n
-    ))
+    setNotifications(notifications.map((n) => (n.id === id ? { ...n, read: true } : n)))
   }
 
   // Get status badge
@@ -1084,16 +1089,20 @@ Terima kasih telah menggunakan layanan kami.
           onClick={() => {
             setSelectedSchedule({
               ...schedule,
-              counselor: schedule.counselor ? {
-                id: String(schedule.counselor.id),
-                name: String(schedule.counselor.name), 
-                adminEmail: String(schedule.counselor.adminEmail),
-                avatarUrl: schedule.counselor.avatarUrl || undefined
-              } : undefined,
-              rating: schedule.rating ? {
-                stars: Number(schedule.rating.stars),
-                description: String(schedule.rating.description)
-              } : undefined
+              counselor: schedule.counselor
+                ? {
+                    id: String(schedule.counselor.id),
+                    name: String(schedule.counselor.name),
+                    adminEmail: String(schedule.counselor.adminEmail),
+                    avatarUrl: schedule.counselor.avatarUrl || undefined,
+                  }
+                : undefined,
+              rating: schedule.rating
+                ? {
+                    stars: Number(schedule.rating.stars),
+                    description: String(schedule.rating.description),
+                  }
+                : undefined,
             })
             setIsDetailOpen(true)
           }}
@@ -1101,12 +1110,16 @@ Terima kasih telah menggunakan layanan kami.
           {/* Swipe indicators */}
           {isMobile && isSwipeEnabled && (
             <>
-              <div className="absolute left-2 inset-y-0 flex items-center justify-center opacity-0 transition-opacity duration-300 text-red-300"
-                style={{ opacity: swipeDirection === "left" && selectedSchedule?.id === schedule.id ? 1 : 0 }}>
+              <div
+                className="absolute left-2 inset-y-0 flex items-center justify-center opacity-0 transition-opacity duration-300 text-red-300"
+                style={{ opacity: swipeDirection === "left" && selectedSchedule?.id === schedule.id ? 1 : 0 }}
+              >
                 <Trash className="h-6 w-6" />
               </div>
-              <div className="absolute right-2 inset-y-0 flex items-center justify-center opacity-0 transition-opacity duration-300 text-green-300"
-                style={{ opacity: swipeDirection === "right" && selectedSchedule?.id === schedule.id ? 1 : 0 }}>
+              <div
+                className="absolute right-2 inset-y-0 flex items-center justify-center opacity-0 transition-opacity duration-300 text-green-300"
+                style={{ opacity: swipeDirection === "right" && selectedSchedule?.id === schedule.id ? 1 : 0 }}
+              >
                 {schedule.status === "Pending" && !schedule.confirmed ? (
                   <Check className="h-6 w-6" />
                 ) : (schedule.status === "Pending" || schedule.status === "Accepted") && schedule.confirmed ? (
@@ -1119,7 +1132,7 @@ Terima kasih telah menggunakan layanan kami.
               </div>
             </>
           )}
-          
+
           <CardHeader className="pb-2 relative">
             <div className="flex justify-between items-start">
               <div className="flex items-center gap-3">
@@ -1218,16 +1231,20 @@ Terima kasih telah menggunakan layanan kami.
           address: schedule.address,
           status: schedule.status,
           confirmed: schedule.confirmed,
-          counselor: schedule.counselor ? {
-            id: String(schedule.counselor.id),
-            name: String(schedule.counselor.name),
-            adminEmail: String(schedule.counselor.adminEmail),
-            avatarUrl: schedule.counselor.avatarUrl || undefined
-          } : undefined,
-          rating: schedule.rating ? {
-            stars: Number(schedule.rating.stars),
-            description: String(schedule.rating.description)
-          } : undefined
+          counselor: schedule.counselor
+            ? {
+                id: String(schedule.counselor.id),
+                name: String(schedule.counselor.name),
+                adminEmail: String(schedule.counselor.adminEmail),
+                avatarUrl: schedule.counselor.avatarUrl || undefined,
+              }
+            : undefined,
+          rating: schedule.rating
+            ? {
+                stars: Number(schedule.rating.stars),
+                description: String(schedule.rating.description),
+              }
+            : undefined,
         }
         acc[dateStr].push(transformedSchedule)
         return acc
@@ -1342,7 +1359,7 @@ Terima kasih telah menggunakan layanan kami.
               today: {
                 border: "2px solid rgba(59, 130, 246, 0.8)",
                 borderRadius: "50%",
-              }
+              },
             }}
           />
         </div>
@@ -1543,16 +1560,20 @@ Terima kasih telah menggunakan layanan kami.
         onClick={() => {
           setSelectedSchedule({
             ...schedule,
-            counselor: schedule.counselor ? {
-              id: String(schedule.counselor.id),
-              name: String(schedule.counselor.name),
-              adminEmail: String(schedule.counselor.adminEmail),
-              avatarUrl: schedule.counselor.avatarUrl || undefined
-            } : undefined,
-            rating: schedule.rating ? {
-              stars: Number(schedule.rating.stars),
-              description: String(schedule.rating.description)
-            } : undefined
+            counselor: schedule.counselor
+              ? {
+                  id: String(schedule.counselor.id),
+                  name: String(schedule.counselor.name),
+                  adminEmail: String(schedule.counselor.adminEmail),
+                  avatarUrl: schedule.counselor.avatarUrl || undefined,
+                }
+              : undefined,
+            rating: schedule.rating
+              ? {
+                  stars: Number(schedule.rating.stars),
+                  description: String(schedule.rating.description),
+                }
+              : undefined,
           })
           setIsDetailOpen(true)
         }}
@@ -1565,16 +1586,16 @@ Terima kasih telah menggunakan layanan kami.
             <h3 className="font-medium text-white truncate">{schedule.title}</h3>
             <div className="flex items-center gap-1 text-sm text-blue-200 mt-1">
               <Clock className="h-3 w-3" />
-              <span>{format(schedule.date, "dd MMM")} • {schedule.time}</span>
+              <span>
+                {format(schedule.date, "dd MMM")} • {schedule.time}
+              </span>
             </div>
             <div className="flex items-center gap-1 text-sm text-blue-200 mt-1">
               <User className="h-3 w-3" />
               <span className="truncate">{schedule.counselor?.name || "Konselor"}</span>
             </div>
           </div>
-          <div className="flex-shrink-0">
-            {getStatusBadge(schedule.status)}
-          </div>
+          <div className="flex-shrink-0">{getStatusBadge(schedule.status)}</div>
         </div>
       </motion.div>
     )
@@ -1588,11 +1609,11 @@ Terima kasih telah menggunakan layanan kami.
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
-        className={`p-4 ${notification.read ? 'bg-white/5' : 'bg-blue-500/10'} rounded-xl border border-white/10 hover:bg-white/10 transition-all cursor-pointer`}
+        className={`p-4 ${notification.read ? "bg-white/5" : "bg-blue-500/10"} rounded-xl border border-white/10 hover:bg-white/10 transition-all cursor-pointer`}
         onClick={() => markNotificationAsRead(notification.id)}
       >
         <div className="flex items-start gap-3">
-          <div className={`${notification.read ? 'bg-blue-500/20' : 'bg-blue-500/40'} rounded-lg p-2 flex-shrink-0`}>
+          <div className={`${notification.read ? "bg-blue-500/20" : "bg-blue-500/40"} rounded-lg p-2 flex-shrink-0`}>
             <Bell className="h-6 w-6 text-blue-300" />
           </div>
           <div className="flex-1 min-w-0">
@@ -1600,9 +1621,7 @@ Terima kasih telah menggunakan layanan kami.
             <p className="text-sm text-blue-200 mt-1">{notification.message}</p>
             <div className="text-xs text-blue-200/70 mt-2">{notification.time}</div>
           </div>
-          {!notification.read && (
-            <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></div>
-          )}
+          {!notification.read && <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></div>}
         </div>
       </motion.div>
     )
@@ -1624,9 +1643,9 @@ Terima kasih telah menggunakan layanan kami.
                 onClick={() => setIsNotificationsOpen(true)}
               >
                 <Bell className="h-5 w-5" />
-                {notifications.filter(n => !n.read).length > 0 && (
+                {notifications.filter((n) => !n.read).length > 0 && (
                   <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full text-[10px] flex items-center justify-center">
-                    {notifications.filter(n => !n.read).length}
+                    {notifications.filter((n) => !n.read).length}
                   </span>
                 )}
               </Button>
@@ -1643,7 +1662,10 @@ Terima kasih telah menggunakan layanan kami.
                   <DropdownMenuItem onClick={() => setIsFilterOpen(!isFilterOpen)} className="flex items-center gap-2">
                     <Filter className="h-4 w-4" /> Filter
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setViewMode(viewMode === "list" ? "calendar" : "list")} className="flex items-center gap-2">
+                  <DropdownMenuItem
+                    onClick={() => setViewMode(viewMode === "list" ? "calendar" : "list")}
+                    className="flex items-center gap-2"
+                  >
                     {viewMode === "list" ? (
                       <>
                         <CalendarIcon2 className="h-4 w-4" /> Tampilan Kalender
@@ -1659,10 +1681,7 @@ Terima kasih telah menggunakan layanan kami.
                       <div className="flex items-center gap-2">
                         <ArrowRight className="h-4 w-4" /> Swipe Actions
                       </div>
-                      <Switch 
-                        checked={isSwipeEnabled} 
-                        onCheckedChange={setIsSwipeEnabled}
-                      />
+                      <Switch checked={isSwipeEnabled} onCheckedChange={setIsSwipeEnabled} />
                     </div>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -1769,10 +1788,7 @@ Terima kasih telah menggunakan layanan kami.
         )}
 
         {/* Main content */}
-        <div 
-          className="px-4 pb-24 pt-4" 
-          ref={scrollRef}
-        >
+        <div className="px-4 pb-24 pt-4" ref={scrollRef}>
           {viewMode === "list" ? (
             <>
               {/* Upcoming schedules section */}
@@ -1783,29 +1799,33 @@ Terima kasih telah menggunakan layanan kami.
                     Jadwal Mendatang
                   </h2>
                   <div className="space-y-3">
-                    {upcomingSchedules.slice(0, 2).map(schedule => {
+                    {upcomingSchedules.slice(0, 2).map((schedule) => {
                       // Transform the schedule to match the Schedule type exactly
                       const transformedSchedule: Schedule = {
                         id: schedule.id,
                         date: schedule.date,
                         time: schedule.time,
-                        title: schedule.title, 
+                        title: schedule.title,
                         description: schedule.description,
                         address: schedule.address,
                         status: schedule.status,
                         confirmed: schedule.confirmed,
-                        counselor: schedule.counselor ? {
-                          id: String(schedule.counselor.id),
-                          name: String(schedule.counselor.name),
-                          adminEmail: String(schedule.counselor.adminEmail),
-                          avatarUrl: schedule.counselor.avatarUrl || undefined
-                        } : undefined,
-                        rating: schedule.rating ? {
-                          stars: Number(schedule.rating.stars),
-                          description: String(schedule.rating.description)
-                        } : undefined
-                      };
-                      return renderUpcomingScheduleCard(transformedSchedule);
+                        counselor: schedule.counselor
+                          ? {
+                              id: String(schedule.counselor.id),
+                              name: String(schedule.counselor.name),
+                              adminEmail: String(schedule.counselor.adminEmail),
+                              avatarUrl: schedule.counselor.avatarUrl || undefined,
+                            }
+                          : undefined,
+                        rating: schedule.rating
+                          ? {
+                              stars: Number(schedule.rating.stars),
+                              description: String(schedule.rating.description),
+                            }
+                          : undefined,
+                      }
+                      return renderUpcomingScheduleCard(transformedSchedule)
                     })}
                     {upcomingSchedules.length > 2 && (
                       <Button
@@ -1875,7 +1895,7 @@ Terima kasih telah menggunakan layanan kami.
                     value="Pending"
                     className="rounded-lg flex items-center gap-1 data-[state=active]:bg-blue-500 data-[state=active]:text-white"
                   >
-                    <Clock3 className="h-4 w-4" /> 
+                    <Clock3 className="h-4 w-4" />
                     <span>Pending</span>
                     {pendingSchedules.length > 0 && (
                       <span className="bg-blue-600 text-white text-xs rounded-full px-1.5 py-0.5 min-w-5 text-center">
@@ -1887,7 +1907,7 @@ Terima kasih telah menggunakan layanan kami.
                     value="Accepted"
                     className="rounded-lg flex items-center gap-1 data-[state=active]:bg-blue-500 data-[state=active]:text-white"
                   >
-                    <CheckCircle className="h-4 w-4" /> 
+                    <CheckCircle className="h-4 w-4" />
                     <span>Accepted</span>
                     {acceptedSchedules.length > 0 && (
                       <span className="bg-blue-600 text-white text-xs rounded-full px-1.5 py-0.5 min-w-5 text-center">
@@ -1899,7 +1919,7 @@ Terima kasih telah menggunakan layanan kami.
                     value="Finished"
                     className="rounded-lg flex items-center gap-1 data-[state=active]:bg-blue-500 data-[state=active]:text-white"
                   >
-                    <Star className="h-4 w-4" /> 
+                    <Star className="h-4 w-4" />
                     <span>Finished</span>
                     {finishedSchedules.length > 0 && (
                       <span className="bg-blue-600 text-white text-xs rounded-full px-1.5 py-0.5 min-w-5 text-center">
@@ -2107,9 +2127,9 @@ Terima kasih telah menggunakan layanan kami.
             <Button
               variant="ghost"
               className={`flex flex-col items-center gap-1 h-auto py-2 ${
-          activeBottomTab === "home" ? "text-white" : "text-blue-200"
+                activeBottomTab === "home" ? "text-white" : "text-blue-200"
               }`}
-              onClick={() => window.location.href = '/dashboard'}
+              onClick={() => (window.location.href = "/dashboard")}
             >
               <Home className="h-5 w-5" />
               <span className="text-xs">Home</span>
@@ -2117,7 +2137,7 @@ Terima kasih telah menggunakan layanan kami.
             <Button
               variant="ghost"
               className={`flex flex-col items-center gap-1 h-auto py-2 ${
-          activeBottomTab === "schedule" ? "text-white" : "text-blue-200"
+                activeBottomTab === "schedule" ? "text-white" : "text-blue-200"
               }`}
               onClick={() => setActiveBottomTab("schedule")}
             >
@@ -2126,19 +2146,19 @@ Terima kasih telah menggunakan layanan kami.
             </Button>
             <div className="-mt-5">
               <Button
-          className="h-14 w-14 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border border-blue-400/30 shadow-lg"
-          size="icon"
-          onClick={() => setIsAddScheduleOpen(true)}
+                className="h-14 w-14 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border border-blue-400/30 shadow-lg"
+                size="icon"
+                onClick={() => setIsAddScheduleOpen(true)}
               >
-          <Plus className="h-6 w-6" />
+                <Plus className="h-6 w-6" />
               </Button>
             </div>
             <Button
               variant="ghost"
               className={`flex flex-col items-center gap-1 h-auto py-2 ${
-          activeBottomTab === "chat" ? "text-white" : "text-blue-200"
+                activeBottomTab === "chat" ? "text-white" : "text-blue-200"
               }`}
-              onClick={() => window.location.href = '/dashboard/konsultasi'}
+              onClick={() => (window.location.href = "/dashboard/konsultasi")}
             >
               <MessageSquare className="h-5 w-5" />
               <span className="text-xs">Konsultasi</span>
@@ -2146,9 +2166,9 @@ Terima kasih telah menggunakan layanan kami.
             <Button
               variant="ghost"
               className={`flex flex-col items-center gap-1 h-auto py-2 ${
-          activeBottomTab === "profile" ? "text-white" : "text-blue-200"
+                activeBottomTab === "profile" ? "text-white" : "text-blue-200"
               }`}
-              onClick={() => window.location.href = '/dashboard/profile'}
+              onClick={() => (window.location.href = "/dashboard/profile")}
             >
               <Settings className="h-5 w-5" />
               <span className="text-xs">Profile</span>
@@ -2166,7 +2186,7 @@ Terima kasih telah menggunakan layanan kami.
                   variant="ghost"
                   size="sm"
                   className="text-blue-200 hover:text-white"
-                  onClick={() => setNotifications(notifications.map(n => ({ ...n, read: true })))}
+                  onClick={() => setNotifications(notifications.map((n) => ({ ...n, read: true })))}
                 >
                   Tandai Semua Dibaca
                 </Button>
@@ -2464,7 +2484,9 @@ Terima kasih telah menggunakan layanan kami.
                       )}
                     />
                     <div className="text-center text-blue-200">{control._formValues.stars} / 5</div>
-                    {errorsRating.stars && <p className="text-sm text-red-300 text-center">{errorsRating.stars.message}</p>}
+                    {errorsRating.stars && (
+                      <p className="text-sm text-red-300 text-center">{errorsRating.stars.message}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="description" className="text-blue-100">
@@ -2583,9 +2605,9 @@ Terima kasih telah menggunakan layanan kami.
                       className="bg-white/10 border-white/20 text-blue-100 hover:bg-white/20 relative"
                     >
                       <Bell className="h-5 w-5" />
-                      {notifications.filter(n => !n.read).length > 0 && (
+                      {notifications.filter((n) => !n.read).length > 0 && (
                         <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full text-[10px] flex items-center justify-center">
-                          {notifications.filter(n => !n.read).length}
+                          {notifications.filter((n) => !n.read).length}
                         </span>
                       )}
                     </Button>
@@ -2597,7 +2619,7 @@ Terima kasih telah menggunakan layanan kami.
                         variant="ghost"
                         size="sm"
                         className="text-blue-200 hover:text-white text-xs"
-                        onClick={() => setNotifications(notifications.map(n => ({ ...n, read: true })))}
+                        onClick={() => setNotifications(notifications.map((n) => ({ ...n, read: true })))}
                       >
                         Tandai Semua Dibaca
                       </Button>
@@ -2798,7 +2820,7 @@ Terima kasih telah menggunakan layanan kami.
                         today: {
                           border: "2px solid rgba(59, 130, 246, 0.8)",
                           borderRadius: "50%",
-                        }
+                        },
                       }}
                     />
                   </div>
@@ -2821,35 +2843,37 @@ Terima kasih telah menggunakan layanan kami.
                     <h3 className="text-white font-medium mb-2">Jadwal Hari Ini</h3>
                     <div className="space-y-2">
                       {todaySchedules.length > 0 ? (
-                        todaySchedules
-                          .slice(0, 3)
-                          .map((schedule) => (
-                            <div
-                              key={schedule.id}
-                              className="p-2 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-colors cursor-pointer"
-                              onClick={() => {
-                                setSelectedSchedule({
-                                  ...schedule,
-                                  counselor: schedule.counselor ? {
-                                    id: String(schedule.counselor.id),
-                                    name: String(schedule.counselor.name),
-                                    adminEmail: String(schedule.counselor.adminEmail),
-                                    avatarUrl: schedule.counselor.avatarUrl || undefined
-                                  } : undefined,
-                                  rating: schedule.rating ? {
-                                    stars: Number(schedule.rating.stars),
-                                    description: String(schedule.rating.description)
-                                  } : undefined
-                                })
-                                setIsDetailOpen(true)
-                              }}
-                            >
-                              <div className="flex justify-between items-center">
-                                <div className="truncate">{schedule.title}</div>
-                                <div className="text-sm text-blue-300">{schedule.time}</div>
-                              </div>
+                        todaySchedules.slice(0, 3).map((schedule) => (
+                          <div
+                            key={schedule.id}
+                            className="p-2 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-colors cursor-pointer"
+                            onClick={() => {
+                              setSelectedSchedule({
+                                ...schedule,
+                                counselor: schedule.counselor
+                                  ? {
+                                      id: String(schedule.counselor.id),
+                                      name: String(schedule.counselor.name),
+                                      adminEmail: String(schedule.counselor.adminEmail),
+                                      avatarUrl: schedule.counselor.avatarUrl || undefined,
+                                    }
+                                  : undefined,
+                                rating: schedule.rating
+                                  ? {
+                                      stars: Number(schedule.rating.stars),
+                                      description: String(schedule.rating.description),
+                                    }
+                                  : undefined,
+                              })
+                              setIsDetailOpen(true)
+                            }}
+                          >
+                            <div className="flex justify-between items-center">
+                              <div className="truncate">{schedule.title}</div>
+                              <div className="text-sm text-blue-300">{schedule.time}</div>
                             </div>
-                          ))
+                          </div>
+                        ))
                       ) : (
                         <div className="p-3 bg-white/5 rounded-lg border border-white/10 text-center text-blue-200/70">
                           Tidak ada jadwal hari ini
@@ -2862,42 +2886,40 @@ Terima kasih telah menggunakan layanan kami.
                     <div className="mt-6">
                       <h3 className="text-white font-medium mb-2">Jadwal Mendatang</h3>
                       <div className="space-y-2">
-                        {upcomingSchedules
-                          .slice(0, 3)
-                          .map((schedule) => (
-                            <div
-                              key={schedule.id}
-                              className="p-2 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-colors cursor-pointer"
-                              onClick={() => {
-                                setSelectedSchedule({
-                                  ...schedule,
-                                  counselor: schedule.counselor 
-                                    ? {
-                                        id: String(schedule.counselor.id),
-                                        name: String(schedule.counselor.name),
-                                        adminEmail: String(schedule.counselor.adminEmail),
-                                        avatarUrl: schedule.counselor.avatarUrl || undefined 
-                                      }
-                                    : undefined,
-                                  rating: schedule.rating
-                                    ? {
-                                        stars: Number(schedule.rating.stars),
-                                        description: String(schedule.rating.description)
-                                      }
-                                    : undefined
-                                })
-                                setIsDetailOpen(true)
-                              }}
-                            >
-                              <div className="flex justify-between items-start">
-                                <div>
-                                  <div className="truncate">{schedule.title}</div>
-                                  <div className="text-xs text-blue-200">{format(schedule.date, "dd MMM")}</div>
-                                </div>
-                                <div className="text-sm text-blue-300">{schedule.time}</div>
+                        {upcomingSchedules.slice(0, 3).map((schedule) => (
+                          <div
+                            key={schedule.id}
+                            className="p-2 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-colors cursor-pointer"
+                            onClick={() => {
+                              setSelectedSchedule({
+                                ...schedule,
+                                counselor: schedule.counselor
+                                  ? {
+                                      id: String(schedule.counselor.id),
+                                      name: String(schedule.counselor.name),
+                                      adminEmail: String(schedule.counselor.adminEmail),
+                                      avatarUrl: schedule.counselor.avatarUrl || undefined,
+                                    }
+                                  : undefined,
+                                rating: schedule.rating
+                                  ? {
+                                      stars: Number(schedule.rating.stars),
+                                      description: String(schedule.rating.description),
+                                    }
+                                  : undefined,
+                              })
+                              setIsDetailOpen(true)
+                            }}
+                          >
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <div className="truncate">{schedule.title}</div>
+                                <div className="text-xs text-blue-200">{format(schedule.date, "dd MMM")}</div>
                               </div>
+                              <div className="text-sm text-blue-300">{schedule.time}</div>
                             </div>
-                          ))}
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
@@ -3479,9 +3501,9 @@ Terima kasih telah menggunakan layanan kami.
               className="fixed bottom-6 right-6 z-50 bg-blue-500 hover:bg-blue-600 text-white border-blue-400/30 h-14 w-14 rounded-full shadow-lg md:hidden"
             >
               <Bell className="h-6 w-6" />
-              {notifications.filter(n => !n.read).length > 0 && (
+              {notifications.filter((n) => !n.read).length > 0 && (
                 <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-xs flex items-center justify-center">
-                  {notifications.filter(n => !n.read).length}
+                  {notifications.filter((n) => !n.read).length}
                 </span>
               )}
             </Button>
@@ -3493,7 +3515,7 @@ Terima kasih telah menggunakan layanan kami.
                 variant="ghost"
                 size="sm"
                 className="text-blue-200 hover:text-white text-xs"
-                onClick={() => setNotifications(notifications.map(n => ({ ...n, read: true })))}
+                onClick={() => setNotifications(notifications.map((n) => ({ ...n, read: true })))}
               >
                 Tandai Semua Dibaca
               </Button>
