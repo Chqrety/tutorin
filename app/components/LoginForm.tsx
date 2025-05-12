@@ -79,7 +79,7 @@ export default function LoginForm() {
       // **Simpan user session dengan token**
       sessionStorage.setItem("userSession", JSON.stringify({ userId, email, token }));
   
-      console.log("Login sukses! User session:", { userId, email, token });
+      
   
       // Redirect ke dashboard
       toast({ title: "Berhasil Masuk!", description: "Anda telah berhasil masuk." });

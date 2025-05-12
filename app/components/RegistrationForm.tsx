@@ -200,9 +200,10 @@ export default function RegistrationForm() {
         title: "Pendaftaran Berhasil!",
         description: "Akun baru berhasil dibuat. Silakan login.",
       })
-
+      // Redirect ke halaman login
+      window.location.href = "/login"
       // Reset form
-      reset()
+    
       setStep(0)
       setAvatarPreview(null)
     } catch (err) {
@@ -770,11 +771,17 @@ export default function RegistrationForm() {
             </form>
           </div>
 
-          <div className="px-6 py-4 bg-blue-900/30 border-t border-white/10">
+            <div className="px-6 py-4 bg-blue-900/30 border-t border-white/10">
             <p className="text-xs text-center text-blue-200/70">
               Dengan mendaftar, Anda menyetujui Syarat dan Ketentuan serta Kebijakan Privasi kami.
             </p>
-          </div>
+            <p className="text-sm text-center text-blue-200/70 mt-2">
+              Sudah punya akun?{" "}
+              <a href="/login" className="text-blue-400 hover:text-blue-300 underline">
+              Login di sini
+              </a>
+            </p>
+            </div>
         </div>
       </motion.div>
     </div>

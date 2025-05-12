@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState,useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import bcrypt from "bcryptjs"
@@ -17,7 +17,18 @@ export default function AdminRegisterPage() {
   const [errorMessage, setErrorMessage] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const router = useRouter()
-
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  useEffect(() => {
+    // Check admin session
+    const adminSession = sessionStorage.getItem("adminSession")
+    if (adminSession) {
+      setIsLoggedIn(true)
+   
+    } else {
+      router.push("/admin/login")
+    }
+  }, [router])
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrorMessage("") // Reset pesan error
