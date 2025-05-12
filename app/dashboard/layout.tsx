@@ -7,7 +7,8 @@ import DashboardSidebar from "../components/desktop-sidebar"
 import DashboardHeader from "../components/DashboardHeader"
 import { metadata } from "./dashboardMetadata"
 import DesktopSidebar from "../components/desktop-sidebar"
-
+import { useWebPush } from '@/hooks/useWebPush';
+import { useSessionContext } from '@supabase/auth-helpers-react';
 export default function DashboardLayout({
   children,
 }: {
@@ -22,6 +23,8 @@ export default function DashboardLayout({
       router.push("/login") // Redirect ke halaman login jika tidak ada sesi
     }
   }, [router])
+   const { session } = useSessionContext();
+  useWebPush(!!session);
 
   return (
     <div className="flex h-screen bg-gray-100 fixed w-full" >

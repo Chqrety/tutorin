@@ -1,5 +1,11 @@
 "use client"
 
+import { SheetDescription } from "@/components/ui/sheet"
+
+import { SheetTitle } from "@/components/ui/sheet"
+
+import { SheetHeader } from "@/components/ui/sheet"
+
 import type React from "react"
 
 import { useState, useEffect, useMemo, useRef } from "react"
@@ -21,7 +27,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { format, isToday, isFuture, isPast, addDays, isThisWeek } from "date-fns"
 import {
   Clock,
@@ -65,11 +70,10 @@ import { motion, AnimatePresence, useScroll, useTransform } from "framer-motion"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Drawer, DrawerContent } from "@/components/ui/drawer"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
-import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
+// Remove this import as we're using react-hook-form's useForm
 
 type SenderRole = "admin" | "user"
 
@@ -92,6 +96,9 @@ type Schedule = {
     stars: number
     description: string
   }
+  consultation_type: "online" | "offline"
+  meeting_link?: string
+  whatsapp_number: string
 }
 
 type Counselor = {
@@ -112,6 +119,13 @@ const schema = yup.object().shape({
   time: yup.string().required("Waktu wajib diisi"),
   address: yup.string().required("Alamat wajib diisi"),
   counselor_id: yup.string().required("Konselor wajib dipilih"),
+  consultation_type: yup.string().required("Tipe konsultasi wajib dipilih"),
+  meeting_link: yup.string().when("consultation_type", {
+    is: "online",
+    then: (schema) => schema.required("Link meeting wajib diisi untuk konsultasi online"),
+    otherwise: (schema) => schema.notRequired(),
+  }),
+  whatsapp_number: yup.string().required("Nomor WhatsApp wajib diisi"),
 })
 
 const ratingSchema = yup.object().shape({
@@ -171,6 +185,9 @@ const fetcher = async (userId: string, status: string, page: number, pageSize: n
             description: item.rating.description,
           }
         : null,
+      consultation_type: item.consultation_type,
+      meeting_link: item.meeting_link,
+      whatsapp_number: item.whatsapp_number,
     })),
     total: count,
   }
@@ -203,7 +220,7 @@ export default function JadwalPage() {
   const [touchStartX, setTouchStartX] = useState(0)
   const [activeBottomTab, setActiveBottomTab] = useState("schedule")
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
- 
+
   const [notifications, setNotifications] = useState([
     {
       id: 1,
@@ -227,7 +244,9 @@ export default function JadwalPage() {
     target: containerRef,
     offset: ["start start", "end start"],
   })
-
+const type = selectedSchedule?.consultation_type?.trim().toLowerCase() ?? 'offline';
+const isOnline = type === 'online';
+const link = selectedSchedule?.meeting_link?.trim();
   const backgroundY = useTransform(scrollYProgress, [0, 1], ["0%", "20%"])
   const opacity = useTransform(scrollYProgress, [0, 0.3, 0.6, 1], [0.6, 1, 1, 0.6])
 
@@ -347,6 +366,8 @@ export default function JadwalPage() {
     formState: { errors },
     reset,
     control: scheduleControl,
+    watch,
+    setValue,
   } = useForm<{
     date: string
     title: string
@@ -354,15 +375,21 @@ export default function JadwalPage() {
     address: string
     description: string
     counselor_id: string
+    consultation_type: string
+    meeting_link: string
+    whatsapp_number: string
   }>({
     resolver: yupResolver(schema as any),
     defaultValues: {
       date: date?.toISOString() || "",
       title: "",
       time: "",
-      address: "",
+      address: "Cafetaria",
       description: "",
       counselor_id: "",
+      consultation_type: "offline",
+      meeting_link: "",
+      whatsapp_number: "",
     },
   })
 
@@ -465,7 +492,8 @@ export default function JadwalPage() {
     isLoadingInitialPending || (sizePending > 0 && dataPending && typeof dataPending[sizePending - 1] === "undefined")
   const isEmptyPending = dataPending?.[0]?.schedules?.length === 0
   const isReachingEndPending =
-    isEmptyPending || (dataPending && dataPending[dataPending.length - 1]?.schedules.length < pageSize)
+    isEmptyPending ||
+    (dataPending && dataPending.length > 0 && dataPending[dataPending.length - 1]?.schedules.length < pageSize)
 
   // Fetcher for Finished schedules
   const getKeyFinished = (pageIndex: number, previousPageData: any) => {
@@ -581,7 +609,20 @@ export default function JadwalPage() {
 
     return filtered
   }, [allSchedules, searchQuery, filterOptions])
+useEffect(() => {
+  const subscription = watch((value: { consultation_type?: string }, { name }: { name?: string }) => {
+    if (name === "consultation_type") {
+      if (value.consultation_type === "offline") {
+        setValue("address", "Cafetaria")
+        setValue("meeting_link", "")
+      } else {
+        setValue("address", "Online")
+      }
+    }
+  })
 
+  return () => subscription.unsubscribe()
+}, [watch, setValue])
   // Real-time subscriptions
   useEffect(() => {
     if (!userId) return
@@ -651,6 +692,7 @@ export default function JadwalPage() {
     title: string,
     senderRole: SenderRole,
     action: string,
+    schedule: Schedule,
   ) => {
     try {
       const subjectMap: Record<string, string> = {
@@ -671,6 +713,9 @@ Tanggal: ${date}
 Waktu: ${time}
 Alamat: ${address}
 Judul: ${title}
+Tipe Konsultasi: ${schedule.consultation_type === "online" ? "Online" : "Offline"}
+${schedule.consultation_type === "online" ? `Link Meeting: ${schedule.meeting_link}` : ""}
+Nomor WhatsApp: ${schedule.whatsapp_number}
 
 Silakan login ke dashboard untuk melihat detail lebih lanjut.
         `,
@@ -682,6 +727,9 @@ Tanggal Baru: ${date}
 Waktu Baru: ${time}
 Alamat: ${address}
 Judul: ${title}
+Tipe Konsultasi: ${schedule.consultation_type === "online" ? "Online" : "Offline"}
+${schedule.consultation_type === "online" ? `Link Meeting: ${schedule.meeting_link}` : ""}
+Nomor WhatsApp: ${schedule.whatsapp_number}
 
 Silakan login ke dashboard untuk melihat detail lebih lanjut.
         `,
@@ -693,6 +741,9 @@ Tanggal: ${date}
 Waktu: ${time}
 Alamat: ${address}
 Judul: ${title}
+Tipe Konsultasi: ${schedule.consultation_type === "online" ? "Online" : "Offline"}
+${schedule.consultation_type === "online" ? `Link Meeting: ${schedule.meeting_link}` : ""}
+Nomor WhatsApp: ${schedule.whatsapp_number}
 
 Silakan hubungi kami jika Anda memiliki pertanyaan lebih lanjut.
         `,
@@ -704,6 +755,9 @@ Tanggal: ${date}
 Waktu: ${time}
 Alamat: ${address}
 Judul: ${title}
+Tipe Konsultasi: ${schedule.consultation_type === "online" ? "Online" : "Offline"}
+${schedule.consultation_type === "online" ? `Link Meeting: ${schedule.meeting_link}` : ""}
+Nomor WhatsApp: ${schedule.whatsapp_number}
 
 Terima kasih telah mengonfirmasi jadwal ini.
         `,
@@ -715,6 +769,9 @@ Tanggal: ${date}
 Waktu: ${time}
 Alamat: ${address}
 Judul: ${title}
+Tipe Konsultasi: ${schedule.consultation_type === "online" ? "Online" : "Offline"}
+${schedule.consultation_type === "online" ? `Link Meeting: ${schedule.meeting_link}` : ""}
+Nomor WhatsApp: ${schedule.whatsapp_number}
 
 Jika Anda memiliki pertanyaan lebih lanjut, silakan hubungi kami.
         `,
@@ -726,6 +783,9 @@ Tanggal: ${date}
 Waktu: ${time}
 Alamat: ${address}
 Judul: ${title}
+Tipe Konsultasi: ${schedule.consultation_type === "online" ? "Online" : "Offline"}
+${schedule.consultation_type === "online" ? `Link Meeting: ${schedule.meeting_link}` : ""}
+Nomor WhatsApp: ${schedule.whatsapp_number}
 
 Terima kasih telah menggunakan layanan kami.
         `,
@@ -783,6 +843,9 @@ Terima kasih telah menggunakan layanan kami.
             counselor_id: counselor_id,
             status: "Pending",
             confirmed: false,
+            consultation_type: formData.consultation_type,
+            meeting_link: formData.consultation_type === "online" ? formData.meeting_link : null,
+            whatsapp_number: formData.whatsapp_number,
           })
           .select(`
             *,
@@ -839,6 +902,19 @@ Terima kasih telah menggunakan layanan kami.
       const scheduleItem = [...pendingSchedules, ...acceptedSchedules].find((s) => s.id === scheduleId)
       if (scheduleItem && scheduleItem.counselor) {
         const formattedDate = format(newDate, "dd MMMM yyyy")
+        const transformedSchedule = {
+          ...scheduleItem,
+          counselor: scheduleItem.counselor ? {
+            id: String(scheduleItem.counselor.id),
+            name: String(scheduleItem.counselor.name),
+            adminEmail: String(scheduleItem.counselor.adminEmail),
+            avatarUrl: scheduleItem.counselor.avatarUrl || undefined
+          } : undefined,
+          rating: scheduleItem.rating ? {
+            stars: Number(scheduleItem.rating.stars),
+            description: String(scheduleItem.rating.description)
+          } : undefined
+        }
         const emailSent = await sendEmailNotification(
           scheduleItem.counselor.adminEmail,
           scheduleItem.id,
@@ -848,6 +924,7 @@ Terima kasih telah menggunakan layanan kami.
           scheduleItem.title,
           "user",
           "reschedule",
+          transformedSchedule,
         )
 
         if (!emailSent) {
@@ -890,6 +967,19 @@ Terima kasih telah menggunakan layanan kami.
             scheduleItem.title,
             "user",
             "cancel",
+            {
+              ...scheduleItem,
+              counselor: scheduleItem.counselor ? {
+                id: String(scheduleItem.counselor.id),
+                name: String(scheduleItem.counselor.name),
+                adminEmail: String(scheduleItem.counselor.adminEmail),
+                avatarUrl: scheduleItem.counselor.avatarUrl || undefined
+              } : undefined,
+              rating: scheduleItem.rating ? {
+                stars: Number(scheduleItem.rating.stars),
+                description: String(scheduleItem.rating.description)
+              } : undefined
+            },
           )
 
           if (!emailSent) {
@@ -992,6 +1082,7 @@ Terima kasih telah menggunakan layanan kami.
         schedule.title,
         "user",
         "confirm",
+        schedule,
       )
 
       if (emailSent) {
@@ -1065,6 +1156,39 @@ Terima kasih telah menggunakan layanan kami.
 
   // Render schedule card
   const renderScheduleCard = (schedule: Schedule) => {
+    const handleCardClick = (event: React.MouseEvent | React.TouchEvent) => {
+      event.stopPropagation();
+      const transformedSchedule: Schedule = {
+        id: schedule.id,
+        date: schedule.date,
+        time: schedule.time,
+        title: schedule.title,
+        description: schedule.description,
+        address: schedule.address,
+        status: schedule.status,
+        confirmed: schedule.confirmed,
+        counselor: schedule.counselor
+          ? {
+              id: String(schedule.counselor.id),
+              name: String(schedule.counselor.name),
+              adminEmail: String(schedule.counselor.adminEmail),
+              avatarUrl: schedule.counselor.avatarUrl || undefined,
+            }
+          : undefined,
+        rating: schedule.rating
+          ? {
+              stars: Number(schedule.rating.stars),
+              description: String(schedule.rating.description),
+            }
+          : undefined,
+        consultation_type: (schedule.consultation_type?.trim().toLowerCase() === "online" ? "online" : "offline") as "online" | "offline",
+        whatsapp_number: schedule.whatsapp_number || "",
+       meeting_link: schedule.meeting_link,
+      };
+      setSelectedSchedule(transformedSchedule);
+      setIsDetailOpen(true);
+    };
+
     return (
       <motion.div
         key={schedule.id}
@@ -1086,26 +1210,7 @@ Terima kasih telah menggunakan layanan kami.
                 : "translate-x-[100px] bg-green-500/20"
               : ""
           }`}
-          onClick={() => {
-            setSelectedSchedule({
-              ...schedule,
-              counselor: schedule.counselor
-                ? {
-                    id: String(schedule.counselor.id),
-                    name: String(schedule.counselor.name),
-                    adminEmail: String(schedule.counselor.adminEmail),
-                    avatarUrl: schedule.counselor.avatarUrl || undefined,
-                  }
-                : undefined,
-              rating: schedule.rating
-                ? {
-                    stars: Number(schedule.rating.stars),
-                    description: String(schedule.rating.description),
-                  }
-                : undefined,
-            })
-            setIsDetailOpen(true)
-          }}
+          onClick={handleCardClick}
         >
           {/* Swipe indicators */}
           {isMobile && isSwipeEnabled && (
@@ -1245,6 +1350,9 @@ Terima kasih telah menggunakan layanan kami.
                 description: String(schedule.rating.description),
               }
             : undefined,
+          consultation_type: schedule.consultation_type,
+          meeting_link: schedule.meeting_link,
+          whatsapp_number: schedule.whatsapp_number,
         }
         acc[dateStr].push(transformedSchedule)
         return acc
@@ -1253,6 +1361,7 @@ Terima kasih telah menggunakan layanan kami.
     )
 
     return (
+      <>
       <div className="bg-white/5 rounded-lg border border-white/10 p-4">
         <div className="flex justify-between items-center mb-4">
           <div className="flex gap-2">
@@ -1399,6 +1508,7 @@ Terima kasih telah menggunakan layanan kami.
           </div>
         )}
       </div>
+      </>
     )
   }
 
@@ -1445,6 +1555,47 @@ Terima kasih telah menggunakan layanan kami.
             <div>
               <div className="font-medium text-white">Deskripsi</div>
               <div className="text-blue-200">{schedule.description}</div>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-2 mb-3">
+            <Video className="h-5 w-5 text-blue-300 mt-0.5" />
+            <div>
+              <div className="font-medium text-white">Tipe Konsultasi</div>
+
+<div className="text-blue-200">
+  {type}          
+  {isOnline && link && (
+    <div className="mt-1">
+      <a
+        href={link}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-blue-300 hover:underline inline-block"
+      >
+        Buka Link Meeting
+      </a>
+    </div>
+  )}
+</div>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-2 mb-3">
+            <MessageSquare className="h-5 w-5 text-blue-300 mt-0.5" />
+            <div>
+              <div className="font-medium text-white">Kontak WhatsApp</div>
+              <div className="text-blue-200">
+                {schedule.whatsapp_number}
+                <a
+                  href={`https://wa.me/${schedule.whatsapp_number.replace(/^0/, "62")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-300 hover:underline ml-2 inline-block"
+                >
+                  Hubungi
+                </a>
+              </div>
             </div>
           </div>
 
@@ -1812,18 +1963,20 @@ Terima kasih telah menggunakan layanan kami.
                         confirmed: schedule.confirmed,
                         counselor: schedule.counselor
                           ? {
-                              id: String(schedule.counselor.id),
-                              name: String(schedule.counselor.name),
-                              adminEmail: String(schedule.counselor.adminEmail),
-                              avatarUrl: schedule.counselor.avatarUrl || undefined,
-                            }
+                            id: String(schedule.counselor.id),
+                            name: String(schedule.counselor.name),
+                            adminEmail: String(schedule.counselor.adminEmail),
+                            avatarUrl: schedule.counselor.avatarUrl || undefined,
+                          }
                           : undefined,
                         rating: schedule.rating
                           ? {
-                              stars: Number(schedule.rating.stars),
-                              description: String(schedule.rating.description),
-                            }
+                            stars: Number(schedule.rating.stars),
+                            description: String(schedule.rating.description),
+                          }
                           : undefined,
+                        consultation_type: "online",
+                        whatsapp_number: ""
                       }
                       return renderUpcomingScheduleCard(transformedSchedule)
                     })}
@@ -1869,13 +2022,15 @@ Terima kasih telah menggunakan layanan kami.
                               adminEmail: String(schedule.counselor.adminEmail),
                               avatarUrl: schedule.counselor.avatarUrl || undefined,
                             }
-                          : undefined, // use undefined instead of null
+                          : undefined,
                         rating: schedule.rating
                           ? {
                               stars: Number(schedule.rating.stars),
                               description: String(schedule.rating.description),
                             }
                           : undefined,
+                        consultation_type: schedule.consultation_type,
+                        whatsapp_number: schedule.whatsapp_number,
                       }
                       return renderScheduleCard(transformedSchedule)
                     })}
@@ -1971,18 +2126,20 @@ Terima kasih telah menggunakan layanan kami.
                           confirmed: schedule.confirmed,
                           counselor: schedule.counselor
                             ? {
-                                id: String(schedule.counselor.id),
-                                name: String(schedule.counselor.name),
-                                adminEmail: String(schedule.counselor.adminEmail),
-                                avatarUrl: schedule.counselor.avatarUrl || undefined,
-                              }
+                              id: String(schedule.counselor.id),
+                              name: String(schedule.counselor.name),
+                              adminEmail: String(schedule.counselor.adminEmail),
+                              avatarUrl: schedule.counselor.avatarUrl || undefined,
+                            }
                             : undefined, // use undefined instead of null
                           rating: schedule.rating
                             ? {
-                                stars: Number(schedule.rating.stars),
-                                description: String(schedule.rating.description),
-                              }
+                              stars: Number(schedule.rating.stars),
+                              description: String(schedule.rating.description),
+                            }
                             : undefined,
+                          consultation_type: "online",
+                          whatsapp_number: ""
                         }
                         return renderScheduleCard(transformedSchedule)
                       })}
@@ -2120,6 +2277,7 @@ Terima kasih telah menggunakan layanan kami.
             renderCalendarView()
           )}
         </div>
+
 
         {/* Bottom navigation bar */}
         <div className="fixed bottom-0 left-0 right-0 bg-blue-900/90 backdrop-blur-md border-t border-white/10 z-50">
@@ -2288,16 +2446,86 @@ Terima kasih telah menggunakan layanan kami.
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="consultation_type" className="text-blue-100">
+                    Tipe Konsultasi
+                  </Label>
+                  <div className="flex gap-4">
+                    <div className="flex items-center">
+                      <input
+                        type="radio"
+                        id="offline"
+                        value="offline"
+                        {...register("consultation_type")}
+                        className="mr-2"
+                        defaultChecked
+                      />
+                      <Label htmlFor="offline" className="text-blue-100 cursor-pointer">
+                        Offline
+                      </Label>
+                    </div>
+                    <div className="flex items-center">
+                      <input
+                        type="radio"
+                        id="online"
+                        value="online"
+                        {...register("consultation_type")}
+                        className="mr-2"
+                      />
+                      <Label htmlFor="online" className="text-blue-100 cursor-pointer">
+                        Online
+                      </Label>
+                    </div>
+                  </div>
+                  {errors.consultation_type && (
+                    <p className="text-sm text-red-300">{errors.consultation_type.message}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="address" className="text-blue-100">
                     Lokasi
                   </Label>
                   <Input
                     id="address"
-                    placeholder="Masukkan alamat konsultasi atau 'Online'"
+                    placeholder="Lokasi konsultasi"
                     {...register("address")}
                     className="bg-white/5 border-white/20 text-white placeholder:text-blue-200/50 focus:border-blue-400"
+                    disabled={watch("consultation_type") === "offline"}
+                    defaultValue={watch("consultation_type") === "offline" ? "Cafetaria" : ""}
                   />
                   {errors.address && <p className="text-sm text-red-300">{errors.address.message}</p>}
+                  {watch("consultation_type") === "online" && (
+                    <p className="text-xs text-blue-200">
+                      Untuk konsultasi online, harap buat jadwal minimal H-1 hari.
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="meeting_link" className="text-blue-100">
+                    Link Meeting (untuk konsultasi online)
+                  </Label>
+                  <Input
+                    id="meeting_link"
+                    placeholder="Masukkan link meeting"
+                    {...register("meeting_link")}
+                    className="bg-white/5 border-white/20 text-white placeholder:text-blue-200/50 focus:border-blue-400"
+                    disabled={watch("consultation_type") !== "online"}
+                  />
+                  {errors.meeting_link && <p className="text-sm text-red-300">{errors.meeting_link.message}</p>}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="whatsapp_number" className="text-blue-100">
+                    Nomor WhatsApp
+                  </Label>
+                  <Input
+                    id="whatsapp_number"
+                    placeholder="Contoh: 08123456789"
+                    {...register("whatsapp_number")}
+                    className="bg-white/5 border-white/20 text-white placeholder:text-blue-200/50 focus:border-blue-400"
+                  />
+                  {errors.whatsapp_number && <p className="text-sm text-red-300">{errors.whatsapp_number.message}</p>}
                 </div>
 
                 <div className="space-y-2">
@@ -2344,849 +2572,24 @@ Terima kasih telah menggunakan layanan kami.
         </Drawer>
 
         {/* Reschedule Dialog */}
-        <Drawer open={isRescheduleOpen} onOpenChange={setIsRescheduleOpen}>
-          {rescheduleData && (
-            <DrawerContent className="bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800 text-white border-t border-white/20">
-              <div className="px-4 py-3 border-b border-white/10">
-                <div className="flex justify-between items-center">
-                  <h2 className="text-lg font-bold text-white">Reschedule Jadwal</h2>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-blue-200 hover:text-white"
-                    onClick={() => {
-                      setIsRescheduleOpen(false)
-                      setRescheduleData(null)
-                    }}
-                  >
-                    <X className="h-5 w-5" />
-                  </Button>
-                </div>
-              </div>
-              <div className="p-4 max-h-[70vh] overflow-auto">
-                <form className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="newDate" className="flex items-center gap-2 text-blue-100">
-                      <CalendarIcon className="h-4 w-4 text-blue-300" /> Tanggal Baru
-                    </Label>
-                    <div className="relative">
-                      <div
-                        className="p-2 bg-white/5 border border-white/20 rounded-md text-white flex items-center justify-between cursor-pointer"
-                        onClick={() => document.getElementById("reschedule-calendar-popup")?.click()}
-                      >
-                        <span>{format(rescheduleData.date, "dd MMMM yyyy")}</span>
-                        <CalendarIcon className="h-4 w-4 text-blue-300" />
-                        <Dialog>
-                          <DialogTrigger id="reschedule-calendar-popup" className="hidden">
-                            Open
-                          </DialogTrigger>
-                          <DialogContent className="bg-gradient-to-br from-blue-900 to-blue-950 text-white border border-white/20 backdrop-blur-md">
-                            <Calendar
-                              mode="single"
-                              selected={rescheduleData.date}
-                              onSelect={(newDate) => {
-                                if (newDate) {
-                                  setRescheduleData({
-                                    ...rescheduleData,
-                                    date: newDate,
-                                  })
-                                }
-                              }}
-                              className="rounded-md border border-white/10 bg-white/5 text-white"
-                            />
-                          </DialogContent>
-                        </Dialog>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="newTime" className="flex items-center gap-2 text-blue-100">
-                      <Clock className="h-4 w-4 text-blue-300" /> Waktu Baru
-                    </Label>
-                    <Input
-                      id="newTime"
-                      type="time"
-                      value={rescheduleData.time}
-                      onChange={(e) =>
-                        setRescheduleData({
-                          ...rescheduleData,
-                          time: e.target.value,
-                        })
-                      }
-                      className="bg-white/5 border-white/20 text-white focus:border-blue-400"
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      if (rescheduleData) {
-                        handleReschedule(rescheduleData.id, rescheduleData.date, rescheduleData.time)
-                        setIsRescheduleOpen(false)
-                        setRescheduleData(null)
-                      }
-                    }}
-                    className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border border-blue-400/30"
-                  >
-                    Simpan Perubahan
-                  </Button>
-                </form>
-              </div>
-            </DrawerContent>
-          )}
-        </Drawer>
-
-        {/* Rating Dialog */}
-        <Drawer
-          open={ratingData.open}
-          onOpenChange={(open) => {
-            if (!open) {
-              setRatingData({ scheduleId: 0, open: false })
-              resetRating()
-            }
-          }}
-        >
-          {ratingData.open && (
-            <DrawerContent className="bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800 text-white border-t border-white/20">
-              <div className="px-4 py-3 border-b border-white/10">
-                <div className="flex justify-between items-center">
-                  <h2 className="text-lg font-bold text-white">Beri Rating</h2>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-blue-200 hover:text-white"
-                    onClick={() => setRatingData({ scheduleId: 0, open: false })}
-                  >
-                    <X className="h-5 w-5" />
-                  </Button>
-                </div>
-              </div>
-              <div className="p-4 max-h-[70vh] overflow-auto">
-                <form onSubmit={handleSubmitRating(onSubmitRating)} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="stars" className="text-blue-100">
-                      Rating
-                    </Label>
-                    <Controller
-                      name="stars"
-                      control={control}
-                      defaultValue={0.5}
-                      render={({ field }) => (
-                        <div className="flex items-center justify-center">
-                          <ReactStars
-                            count={5}
-                            onChange={(newRating: number) => field.onChange(newRating)}
-                            size={40}
-                            half={true}
-                            value={field.value}
-                            color2={"#ffd700"}
-                          />
-                        </div>
-                      )}
-                    />
-                    <div className="text-center text-blue-200">{control._formValues.stars} / 5</div>
-                    {errorsRating.stars && (
-                      <p className="text-sm text-red-300 text-center">{errorsRating.stars.message}</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="description" className="text-blue-100">
-                      Deskripsi
-                    </Label>
-                    <Input
-                      id="description"
-                      placeholder="Berikan komentar tentang konsultasi Anda"
-                      {...registerRating("description")}
-                      className="bg-white/5 border-white/20 text-white placeholder:text-blue-200/50 focus:border-blue-400"
-                    />
-                    {errorsRating.description && (
-                      <p className="text-sm text-red-300">{errorsRating.description.message}</p>
-                    )}
-                  </div>
-                  <Button
-                    type="submit"
-                    className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border border-blue-400/30"
-                  >
-                    Kirim Rating
-                  </Button>
-                </form>
-              </div>
-            </DrawerContent>
-          )}
-        </Drawer>
-
-        {/* Schedule Detail Sheet */}
-        <Sheet open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-          {selectedSchedule && (
-            <SheetContent className="bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800 text-white border-l border-white/20 w-full sm:max-w-md">
-              <div className="px-1 py-3">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-lg font-bold text-white">Detail Jadwal</h2>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-blue-200 hover:text-white"
-                    onClick={() => setIsDetailOpen(false)}
-                  >
-                    <X className="h-5 w-5" />
-                  </Button>
-                </div>
-                {renderScheduleDetail(selectedSchedule)}
-              </div>
-            </SheetContent>
-          )}
-        </Sheet>
-      </div>
-    )
-  }
-
-  // Desktop layout
-  return (
-    <div
-      ref={containerRef}
-      className="min-h-screen bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800 text-white py-6"
-    >
-      {/* Background elements */}
-      <motion.div className="absolute inset-0 z-0 pointer-events-none" style={{ y: backgroundY, opacity }}>
-        <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-blue-950/50 to-transparent"></div>
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-500/10 rounded-full filter blur-3xl"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-indigo-500/10 rounded-full filter blur-3xl"></div>
-      </motion.div>
-
-      <motion.div
-        className="absolute top-1/4 right-10 w-16 h-16 rounded-full border border-blue-400/20 backdrop-blur-sm z-0"
-        animate={{
-          y: [0, -20, 0],
-          opacity: [0.2, 0.4, 0.2],
-        }}
-        transition={{
-          duration: 6,
-          repeat: Number.POSITIVE_INFINITY,
-          repeatType: "reverse",
-        }}
-      />
-
-      <motion.div
-        className="absolute bottom-1/4 left-10 w-12 h-12 rounded-full border border-blue-400/20 backdrop-blur-sm z-0"
-        animate={{
-          y: [0, 20, 0],
-          opacity: [0.1, 0.3, 0.1],
-        }}
-        transition={{
-          duration: 5,
-          repeat: Number.POSITIVE_INFINITY,
-          repeatType: "reverse",
-          delay: 1,
-        }}
-      />
-
-      <div className="container mx-auto px-4 max-w-6xl relative z-10">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="mb-6"
-        >
-          <div className="backdrop-blur-md bg-white/10 border border-white/20 rounded-2xl p-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-              <div>
-                <h1 className="text-3xl font-bold text-white flex items-center">
-                  <CalendarIcon2 className="h-7 w-7 mr-3 text-blue-300" />
-                  Jadwal Konsultasi
-                </h1>
-                <p className="text-blue-200 mt-1">Kelola semua jadwal konsultasi Anda di sini</p>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="bg-white/10 border-white/20 text-blue-100 hover:bg-white/20 relative"
-                    >
-                      <Bell className="h-5 w-5" />
-                      {notifications.filter((n) => !n.read).length > 0 && (
-                        <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full text-[10px] flex items-center justify-center">
-                          {notifications.filter((n) => !n.read).length}
-                        </span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-80 p-0 bg-blue-900 border-white/20">
-                    <div className="px-4 py-3 border-b border-white/10 flex justify-between items-center">
-                      <h3 className="font-medium text-white">Notifikasi</h3>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-blue-200 hover:text-white text-xs"
-                        onClick={() => setNotifications(notifications.map((n) => ({ ...n, read: true })))}
-                      >
-                        Tandai Semua Dibaca
-                      </Button>
-                    </div>
-                    <ScrollArea className="h-[300px]">
-                      <div className="p-2 space-y-2">
-                        {notifications.length > 0 ? (
-                          notifications.map(renderNotificationItem)
-                        ) : (
-                          <div className="text-center py-8">
-                            <Bell className="h-8 w-8 mx-auto text-blue-300/50 mb-2" />
-                            <p className="text-blue-200 text-sm">Tidak ada notifikasi</p>
-                          </div>
-                        )}
-                      </div>
-                    </ScrollArea>
-                  </PopoverContent>
-                </Popover>
-
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="bg-white/10 border-white/20 text-blue-100 hover:bg-white/20"
-                  onClick={() => setIsSearchOpen(!isSearchOpen)}
-                >
-                  <Search className="h-5 w-5" />
-                </Button>
-
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="bg-white/10 border-white/20 text-blue-100 hover:bg-white/20"
-                  onClick={() => setIsFilterOpen(!isFilterOpen)}
-                >
-                  <Filter className="h-5 w-5" />
-                </Button>
-
-                <div className="flex rounded-lg overflow-hidden border border-white/20">
-                  <Button
-                    variant={viewMode === "list" ? "default" : "ghost"}
-                    size="sm"
-                    className={
-                      viewMode === "list"
-                        ? "bg-blue-500 hover:bg-blue-600 text-white rounded-none"
-                        : "bg-white/10 hover:bg-white/20 text-blue-100 rounded-none"
-                    }
-                    onClick={() => setViewMode("list")}
-                  >
-                    <MessageSquare className="h-4 w-4 mr-2" /> List
-                  </Button>
-                  <Button
-                    variant={viewMode === "calendar" ? "default" : "ghost"}
-                    size="sm"
-                    className={
-                      viewMode === "calendar"
-                        ? "bg-blue-500 hover:bg-blue-600 text-white rounded-none"
-                        : "bg-white/10 hover:bg-white/20 text-blue-100 rounded-none"
-                    }
-                    onClick={() => setViewMode("calendar")}
-                  >
-                    <CalendarIcon2 className="h-4 w-4 mr-2" /> Calendar
-                  </Button>
-                </div>
-
-                <Button
-                  onClick={() => setIsAddScheduleOpen(true)}
-                  className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border border-blue-400/30"
-                >
-                  <Plus className="h-4 w-4 mr-2" /> Tambah Jadwal
-                </Button>
-              </div>
-            </div>
-
-            <AnimatePresence>
-              {isSearchOpen && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="overflow-hidden"
-                >
-                  <div className="mt-4 pt-4 border-t border-white/10">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-blue-300" />
-                      <Input
-                        placeholder="Cari jadwal berdasarkan judul, deskripsi, konselor, atau lokasi..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-9 bg-white/5 border-white/20 text-white placeholder:text-blue-200/50 w-full"
-                      />
-                      {searchQuery && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 w-7 text-blue-200 hover:text-white"
-                          onClick={() => setSearchQuery("")}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <AnimatePresence>
-              {isFilterOpen && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="overflow-hidden"
-                >
-                  <div className="mt-4 pt-4 border-t border-white/10">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <Label className="text-blue-100 mb-2 block">Lokasi</Label>
-                        <select
-                          value={filterOptions.location}
-                          onChange={(e) => setFilterOptions({ ...filterOptions, location: e.target.value })}
-                          className="w-full p-2 rounded-md bg-white/5 border border-white/20 text-white"
-                        >
-                          <option value="all">Semua Lokasi</option>
-                          <option value="online">Online</option>
-                          <option value="offline">Offline</option>
-                        </select>
-                      </div>
-                      <div>
-                        <Label className="text-blue-100 mb-2 block">Konselor</Label>
-                        <select
-                          value={filterOptions.counselor}
-                          onChange={(e) => setFilterOptions({ ...filterOptions, counselor: e.target.value })}
-                          className="w-full p-2 rounded-md bg-white/5 border border-white/20 text-white"
-                        >
-                          <option value="all">Semua Konselor</option>
-                          {counselors.map((counselor) => (
-                            <option key={counselor.id} value={counselor.id}>
-                              {counselor.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <Label className="text-blue-100 mb-2 block">Rentang Waktu</Label>
-                        <select
-                          value={filterOptions.dateRange}
-                          onChange={(e) => setFilterOptions({ ...filterOptions, dateRange: e.target.value })}
-                          className="w-full p-2 rounded-md bg-white/5 border border-white/20 text-white"
-                        >
-                          <option value="all">Semua Waktu</option>
-                          <option value="today">Hari Ini</option>
-                          <option value="week">Minggu Ini</option>
-                          <option value="upcoming">Mendatang</option>
-                          <option value="past">Sebelumnya</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </motion.div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className={viewMode === "calendar" ? "lg:col-span-3" : "lg:col-span-1"}
-          >
-            {viewMode === "list" && (
-              <Card className="backdrop-blur-md bg-white/10 border border-white/20 overflow-hidden sticky top-4">
-                <CardHeader>
-                  <CardTitle className="flex items-center text-white">
-                    <CalendarIcon className="h-5 w-5 mr-2 text-blue-300" /> Kalender
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="bg-white/5 rounded-lg p-2 border border-white/10">
-                    <Calendar
-                      mode="single"
-                      selected={date}
-                      onSelect={setDate}
-                      className="rounded-md border border-white/10 bg-white/5 text-white"
-                      modifiers={{
-                        hasSchedule: allSchedules.map((s) => s.date),
-                        today: [new Date()],
-                      }}
-                      modifiersStyles={{
-                        hasSchedule: {
-                          backgroundColor: "rgba(59, 130, 246, 0.3)",
-                          borderRadius: "50%",
-                        },
-                        today: {
-                          border: "2px solid rgba(59, 130, 246, 0.8)",
-                          borderRadius: "50%",
-                        },
-                      }}
-                    />
-                  </div>
-                  <div className="mt-6 space-y-3 bg-white/5 rounded-lg p-4 border border-white/10">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
-                      <span className="text-sm text-blue-100">Pending: {pendingSchedules.length}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-blue-400"></div>
-                      <span className="text-sm text-blue-100">Accepted: {acceptedSchedules.length}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-green-400"></div>
-                      <span className="text-sm text-blue-100">Finished: {finishedSchedules.length}</span>
-                    </div>
-                  </div>
-
-                  <div className="mt-6">
-                    <h3 className="text-white font-medium mb-2">Jadwal Hari Ini</h3>
-                    <div className="space-y-2">
-                      {todaySchedules.length > 0 ? (
-                        todaySchedules.slice(0, 3).map((schedule) => (
-                          <div
-                            key={schedule.id}
-                            className="p-2 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-colors cursor-pointer"
-                            onClick={() => {
-                              setSelectedSchedule({
-                                ...schedule,
-                                counselor: schedule.counselor
-                                  ? {
-                                      id: String(schedule.counselor.id),
-                                      name: String(schedule.counselor.name),
-                                      adminEmail: String(schedule.counselor.adminEmail),
-                                      avatarUrl: schedule.counselor.avatarUrl || undefined,
-                                    }
-                                  : undefined,
-                                rating: schedule.rating
-                                  ? {
-                                      stars: Number(schedule.rating.stars),
-                                      description: String(schedule.rating.description),
-                                    }
-                                  : undefined,
-                              })
-                              setIsDetailOpen(true)
-                            }}
-                          >
-                            <div className="flex justify-between items-center">
-                              <div className="truncate">{schedule.title}</div>
-                              <div className="text-sm text-blue-300">{schedule.time}</div>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="p-3 bg-white/5 rounded-lg border border-white/10 text-center text-blue-200/70">
-                          Tidak ada jadwal hari ini
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {upcomingSchedules.length > 0 && (
-                    <div className="mt-6">
-                      <h3 className="text-white font-medium mb-2">Jadwal Mendatang</h3>
-                      <div className="space-y-2">
-                        {upcomingSchedules.slice(0, 3).map((schedule) => (
-                          <div
-                            key={schedule.id}
-                            className="p-2 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-colors cursor-pointer"
-                            onClick={() => {
-                              setSelectedSchedule({
-                                ...schedule,
-                                counselor: schedule.counselor
-                                  ? {
-                                      id: String(schedule.counselor.id),
-                                      name: String(schedule.counselor.name),
-                                      adminEmail: String(schedule.counselor.adminEmail),
-                                      avatarUrl: schedule.counselor.avatarUrl || undefined,
-                                    }
-                                  : undefined,
-                                rating: schedule.rating
-                                  ? {
-                                      stars: Number(schedule.rating.stars),
-                                      description: String(schedule.rating.description),
-                                    }
-                                  : undefined,
-                              })
-                              setIsDetailOpen(true)
-                            }}
-                          >
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <div className="truncate">{schedule.title}</div>
-                                <div className="text-xs text-blue-200">{format(schedule.date, "dd MMM")}</div>
-                              </div>
-                              <div className="text-sm text-blue-300">{schedule.time}</div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {viewMode === "calendar" && renderCalendarView()}
-          </motion.div>
-
-          {viewMode === "list" && (
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="lg:col-span-2"
-            >
-              <Tabs
-                defaultValue="Pending"
-                value={activeTab}
-                onValueChange={(value) => setActiveTab(value as any)}
-                className="backdrop-blur-md bg-white/10 border border-white/20 rounded-lg p-4"
+        <Dialog open={isRescheduleOpen} onOpenChange={setIsRescheduleOpen}>
+          <DialogContent className="bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800 text-white border border-white/20 backdrop-blur-md">
+            {rescheduleData && (
+              <form
+                onSubmit={handleSubmit(async (data) => {
+                  await handleReschedule(rescheduleData.id, date || rescheduleData.date, data.time)
+                  setIsRescheduleOpen(false)
+                })}
+                className="space-y-4"
               >
-                <TabsList className="grid grid-cols-3 mb-4 bg-white/10 border border-white/10">
-                  <TabsTrigger
-                    value="Pending"
-                    className="flex items-center gap-2 data-[state=active]:bg-blue-500 data-[state=active]:text-white"
-                  >
-                    <Clock3 className="h-4 w-4" /> Pending
-                    {pendingSchedules.length > 0 && (
-                      <span className="bg-blue-600 text-white text-xs rounded-full px-2 py-0.5">
-                        {pendingSchedules.length}
-                      </span>
-                    )}
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="Accepted"
-                    className="flex items-center gap-2 data-[state=active]:bg-blue-500 data-[state=active]:text-white"
-                  >
-                    <CheckCircle className="h-4 w-4" /> Accepted
-                    {acceptedSchedules.length > 0 && (
-                      <span className="bg-blue-600 text-white text-xs rounded-full px-2 py-0.5">
-                        {acceptedSchedules.length}
-                      </span>
-                    )}
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="Finished"
-                    className="flex items-center gap-2 data-[state=active]:bg-blue-500 data-[state=active]:text-white"
-                  >
-                    <Star className="h-4 w-4" /> Finished
-                    {finishedSchedules.length > 0 && (
-                      <span className="bg-blue-600 text-white text-xs rounded-full px-2 py-0.5">
-                        {finishedSchedules.length}
-                      </span>
-                    )}
-                  </TabsTrigger>
-                </TabsList>
+                <DialogHeader>
+                  <DialogTitle>Reschedule Jadwal</DialogTitle>
+                  <DialogDescription>Masukkan tanggal dan waktu baru untuk jadwal ini.</DialogDescription>
+                </DialogHeader>
 
-                <TabsContent value="Pending" className="mt-0">
-                  <Card className="backdrop-blur-md bg-white/5 border border-white/10 overflow-hidden">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-white">Jadwal Pending</CardTitle>
-                      <CardDescription className="text-blue-200">
-                        Jadwal yang belum dikonfirmasi oleh admin
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <ScrollArea className="h-[500px] pr-4">
-                        <InfiniteScroll
-                          dataLength={pendingSchedules.length}
-                          next={() => setSizePending(sizePending + 1)}
-                          hasMore={!isReachingEndPending}
-                          loader={
-                            <div className="flex justify-center items-center my-4">
-                              <Loader2 className="h-6 w-6 text-blue-300 animate-spin" />
-                            </div>
-                          }
-                          scrollableTarget="scrollableDiv"
-                        >
-                          {isLoadingInitialPending ? (
-                            <div className="flex justify-center py-8">
-                              <Loader2 className="h-8 w-8 text-blue-300 animate-spin" />
-                            </div>
-                          ) : pendingSchedules.length > 0 ? (
-                            pendingSchedules
-                              .map((schedule) => ({
-                                ...schedule,
-                                counselor: schedule.counselor
-                                  ? {
-                                      id: String(schedule.counselor.id),
-                                      name: String(schedule.counselor.name),
-                                      adminEmail: String(schedule.counselor.adminEmail),
-                                      avatarUrl: schedule.counselor.avatarUrl || undefined,
-                                    }
-                                  : undefined,
-                                rating: schedule.rating
-                                  ? {
-                                      stars: Number(schedule.rating.stars),
-                                      description: String(schedule.rating.description),
-                                    }
-                                  : undefined,
-                              }))
-                              .map(renderScheduleCard)
-                          ) : (
-                            <div className="text-center py-8 text-blue-200 bg-white/5 rounded-lg border border-white/10">
-                              <Clock3 className="h-12 w-12 mx-auto text-blue-300/50 mb-3" />
-                              <p className="mb-4">Belum ada jadwal Pending</p>
-                              <Button
-                                className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border border-blue-400/30"
-                                onClick={() => setIsAddScheduleOpen(true)}
-                              >
-                                <Plus className="h-4 w-4 mr-2" /> Tambah Jadwal
-                              </Button>
-                            </div>
-                          )}
-                        </InfiniteScroll>
-                      </ScrollArea>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="Accepted" className="mt-0">
-                  <Card className="backdrop-blur-md bg-white/5 border border-white/10 overflow-hidden">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-white">Jadwal Accepted</CardTitle>
-                      <CardDescription className="text-blue-200">
-                        Jadwal yang telah dikonfirmasi oleh admin
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <ScrollArea className="h-[500px] pr-4">
-                        <InfiniteScroll
-                          dataLength={acceptedSchedules.length}
-                          next={() => setSizeAccepted(sizeAccepted + 1)}
-                          hasMore={!isReachingEndAccepted}
-                          loader={
-                            <div className="flex justify-center items-center my-4">
-                              <Loader2 className="h-6 w-6 text-blue-300 animate-spin" />
-                            </div>
-                          }
-                          scrollableTarget="scrollableDiv"
-                        >
-                          {isLoadingInitialAccepted ? (
-                            <div className="flex justify-center py-8">
-                              <Loader2 className="h-8 w-8 text-blue-300 animate-spin" />
-                            </div>
-                          ) : acceptedSchedules.length > 0 ? (
-                            acceptedSchedules
-                              .map((schedule) => ({
-                                ...schedule,
-                                counselor: schedule.counselor
-                                  ? {
-                                      id: String(schedule.counselor.id),
-                                      name: String(schedule.counselor.name),
-                                      adminEmail: String(schedule.counselor.adminEmail),
-                                      avatarUrl: schedule.counselor.avatarUrl ?? undefined,
-                                    }
-                                  : undefined,
-                                rating: schedule.rating
-                                  ? {
-                                      stars: Number(schedule.rating.stars),
-                                      description: String(schedule.rating.description),
-                                    }
-                                  : undefined,
-                              }))
-                              .map(renderScheduleCard)
-                          ) : (
-                            <div className="text-center py-8 text-blue-200 bg-white/5 rounded-lg border border-white/10">
-                              <CheckCircle className="h-12 w-12 mx-auto text-blue-300/50 mb-3" />
-                              <p>Belum ada jadwal Accepted</p>
-                            </div>
-                          )}
-                        </InfiniteScroll>
-                      </ScrollArea>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="Finished" className="mt-0">
-                  <Card className="backdrop-blur-md bg-white/5 border border-white/10 overflow-hidden">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-white">Jadwal Finished</CardTitle>
-                      <CardDescription className="text-blue-200">Jadwal yang telah selesai</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <ScrollArea className="h-[500px] pr-4">
-                        <InfiniteScroll
-                          dataLength={finishedSchedules.length}
-                          next={() => setSizeFinished(sizeFinished + 1)}
-                          hasMore={!isReachingEndFinished}
-                          loader={
-                            <div className="flex justify-center items-center my-4">
-                              <Loader2 className="h-6 w-6 text-blue-300 animate-spin" />
-                            </div>
-                          }
-                          scrollableTarget="scrollableDiv"
-                        >
-                          {isLoadingInitialFinished ? (
-                            <div className="flex justify-center py-8">
-                              <Loader2 className="h-8 w-8 text-blue-300 animate-spin" />
-                            </div>
-                          ) : finishedSchedules.length > 0 ? (
-                            finishedSchedules
-                              .map((schedule) => ({
-                                ...schedule,
-                                counselor: schedule.counselor
-                                  ? {
-                                      id: String(schedule.counselor.id),
-                                      name: String(schedule.counselor.name),
-                                      adminEmail: String(schedule.counselor.adminEmail),
-                                      avatarUrl: schedule.counselor.avatarUrl || undefined,
-                                    }
-                                  : undefined,
-                                rating: schedule.rating
-                                  ? {
-                                      stars: Number(schedule.rating.stars),
-                                      description: String(schedule.rating.description),
-                                    }
-                                  : undefined,
-                              }))
-                              .map(renderScheduleCard)
-                          ) : (
-                            <div className="text-center py-8 text-blue-200 bg-white/5 rounded-lg border border-white/10">
-                              <Star className="h-12 w-12 mx-auto text-blue-300/50 mb-3" />
-                              <p>Belum ada jadwal Finished</p>
-                            </div>
-                          )}
-                        </InfiniteScroll>
-                      </ScrollArea>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              </Tabs>
-            </motion.div>
-          )}
-        </div>
-
-        <Dialog open={isAddScheduleOpen} onOpenChange={setIsAddScheduleOpen}>
-          <DialogContent className="sm:max-w-[500px] bg-gradient-to-br from-blue-900 to-blue-950 text-white border border-white/20 backdrop-blur-md">
-            <DialogHeader>
-              <VisuallyHidden>
-                <DialogTitle>Tambah Jadwal Baru</DialogTitle>
-              </VisuallyHidden>
-              <DialogDescription className="text-blue-200">
-                Masukkan detail jadwal konsultasi baru di sini.
-              </DialogDescription>
-            </DialogHeader>
-
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="title" className="text-blue-100">
-                  Judul
-                </Label>
-                <Input
-                  id="title"
-                  placeholder="Masukkan judul jadwal"
-                  {...register("title")}
-                  className="bg-white/5 border-white/20 text-white placeholder:text-blue-200/50 focus:border-blue-400"
-                />
-                {errors.title && <p className="text-sm text-red-300">{errors.title.message}</p>}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="date" className="text-blue-100">
-                    Tanggal
+                    Tanggal Baru
                   </Label>
                   <div className="relative">
                     <Controller
@@ -3198,7 +2601,9 @@ Terima kasih telah menggunakan layanan kami.
                           className="p-2 bg-white/5 border border-white/20 rounded-md text-white flex items-center justify-between cursor-pointer"
                           onClick={() => document.getElementById("calendar-popup")?.click()}
                         >
-                          <span>{date ? format(date, "dd MMMM yyyy") : "Pilih tanggal"}</span>
+                          <span>
+                            {date ? format(date, "dd MMMM yyyy") : format(rescheduleData.date, "dd MMMM yyyy")}
+                          </span>
                           <CalendarIcon className="h-4 w-4 text-blue-300" />
                           <Dialog>
                             <DialogTrigger id="calendar-popup" className="hidden">
@@ -3224,7 +2629,7 @@ Terima kasih telah menggunakan layanan kami.
 
                 <div className="space-y-2">
                   <Label htmlFor="time" className="text-blue-100">
-                    Waktu
+                    Waktu Baru
                   </Label>
                   <Input
                     id="time"
@@ -3234,213 +2639,52 @@ Terima kasih telah menggunakan layanan kami.
                   />
                   {errors.time && <p className="text-sm text-red-300">{errors.time.message}</p>}
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="address" className="text-blue-100">
-                  Lokasi
-                </Label>
-                <Input
-                  id="address"
-                  placeholder="Masukkan alamat konsultasi atau 'Online'"
-                  {...register("address")}
-                  className="bg-white/5 border-white/20 text-white placeholder:text-blue-200/50 focus:border-blue-400"
-                />
-                {errors.address && <p className="text-sm text-red-300">{errors.address.message}</p>}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="counselor" className="text-blue-100">
-                  Konselor
-                </Label>
-                <select
-                  id="counselor"
-                  {...register("counselor_id")}
-                  className="w-full border rounded-md p-2 bg-white/5 border-white/20 text-white focus:border-blue-400"
-                >
-                  <option value="">Pilih Konselor</option>
-                  {counselors.map((counselor) => (
-                    <option key={counselor.id} value={counselor.id}>
-                      {counselor.name}
-                    </option>
-                  ))}
-                </select>
-                {errors.counselor_id && <p className="text-sm text-red-300">{errors.counselor_id.message}</p>}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="description" className="text-blue-100">
-                  Deskripsi
-                </Label>
-                <Input
-                  id="description"
-                  placeholder="Masukkan deskripsi jadwal"
-                  {...register("description")}
-                  className="bg-white/5 border-white/20 text-white placeholder:text-blue-200/50 focus:border-blue-400"
-                />
-                {errors.description && <p className="text-sm text-red-300">{errors.description.message}</p>}
-              </div>
-
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsAddScheduleOpen(false)}
-                  className="bg-white/10 border-white/20 text-blue-100 hover:bg-white/20 hover:text-white"
-                >
-                  Batal
-                </Button>
-                <Button
-                  type="submit"
-                  className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border border-blue-400/30"
-                >
-                  Tambah Jadwal
-                </Button>
-              </DialogFooter>
-            </form>
+                <DialogFooter>
+                  <Button variant="ghost" onClick={() => setIsRescheduleOpen(false)}>
+                    Batal
+                  </Button>
+                  <Button type="submit">Simpan Perubahan</Button>
+                </DialogFooter>
+              </form>
+            )}
           </DialogContent>
         </Dialog>
 
-        <Dialog open={isRescheduleOpen} onOpenChange={setIsRescheduleOpen}>
-          {rescheduleData && (
-            <DialogContent className="sm:max-w-[425px] bg-gradient-to-br from-blue-900 to-blue-950 text-white border border-white/20 backdrop-blur-md">
-              <DialogHeader>
-                <VisuallyHidden>
-                  <DialogTitle>Reschedule Jadwal</DialogTitle>
-                </VisuallyHidden>
-                <DialogTitle className="text-white">Reschedule Jadwal</DialogTitle>
-                <DialogDescription className="text-blue-200">
-                  Masukkan tanggal dan waktu baru untuk jadwal ini.
-                </DialogDescription>
-              </DialogHeader>
-              <form className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="newDate" className="flex items-center gap-2 text-blue-100">
-                    <CalendarIcon className="h-4 w-4 text-blue-300" /> Tanggal Baru
-                  </Label>
-                  <div className="relative">
-                    <div
-                      className="p-2 bg-white/5 border border-white/20 rounded-md text-white flex items-center justify-between cursor-pointer"
-                      onClick={() => document.getElementById("reschedule-calendar-popup")?.click()}
-                    >
-                      <span>{format(rescheduleData.date, "dd MMMM yyyy")}</span>
-                      <CalendarIcon className="h-4 w-4 text-blue-300" />
-                      <Dialog>
-                        <DialogTrigger id="reschedule-calendar-popup" className="hidden">
-                          Open
-                        </DialogTrigger>
-                        <DialogContent className="bg-gradient-to-br from-blue-900 to-blue-950 text-white border border-white/20 backdrop-blur-md">
-                          <Calendar
-                            mode="single"
-                            selected={rescheduleData.date}
-                            onSelect={(newDate) => {
-                              if (newDate) {
-                                setRescheduleData({
-                                  ...rescheduleData,
-                                  date: newDate,
-                                })
-                              }
-                            }}
-                            className="rounded-md border border-white/10 bg-white/5 text-white"
-                          />
-                        </DialogContent>
-                      </Dialog>
-                    </div>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="newTime" className="flex items-center gap-2 text-blue-100">
-                    <Clock className="h-4 w-4 text-blue-300" /> Waktu Baru
-                  </Label>
-                  <Input
-                    id="newTime"
-                    type="time"
-                    value={rescheduleData.time}
-                    onChange={(e) =>
-                      setRescheduleData({
-                        ...rescheduleData,
-                        time: e.target.value,
-                      })
-                    }
-                    className="bg-white/5 border-white/20 text-white focus:border-blue-400"
-                  />
-                </div>
-                <DialogFooter>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setIsRescheduleOpen(false)
-                      setRescheduleData(null)
-                    }}
-                    className="bg-white/10 border-white/20 text-blue-100 hover:bg-white/20 hover:text-white"
-                  >
-                    Batal
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      if (rescheduleData) {
-                        handleReschedule(rescheduleData.id, rescheduleData.date, rescheduleData.time)
-                        setIsRescheduleOpen(false)
-                        setRescheduleData(null)
-                      }
-                    }}
-                    className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border border-blue-400/30"
-                  >
-                    Simpan Perubahan
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          )}
-        </Dialog>
-
-        <Dialog
-          open={ratingData.open}
-          onOpenChange={(open) => {
-            if (!open) {
-              setRatingData({ scheduleId: 0, open: false })
-              resetRating()
-            }
-          }}
-        >
-          {ratingData.open && (
-            <DialogContent className="sm:max-w-[425px] bg-gradient-to-br from-blue-900 to-blue-950 text-white border border-white/20 backdrop-blur-md">
-              <DialogHeader>
-                <VisuallyHidden>
-                  <DialogTitle>Beri Rating</DialogTitle>
-                </VisuallyHidden>
-                <DialogTitle className="text-white">Beri Rating</DialogTitle>
-                <DialogDescription className="text-blue-200">
-                  Berikan rating dan deskripsi konsultasi Anda.
-                </DialogDescription>
-              </DialogHeader>
+        {/* Rating Dialog */}
+        <Dialog open={ratingData.open} onOpenChange={() => setRatingData({ scheduleId: 0, open: false })}>
+          <DialogContent className="bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800 text-white border border-white/20 backdrop-blur-md">
+            {ratingData.open && (
               <form onSubmit={handleSubmitRating(onSubmitRating)} className="space-y-4">
+                <DialogHeader>
+                  <DialogTitle>Beri Rating</DialogTitle>
+                  <DialogDescription>Berikan rating dan deskripsi konsultasi Anda.</DialogDescription>
+                </DialogHeader>
+
                 <div className="space-y-2">
                   <Label htmlFor="stars" className="text-blue-100">
                     Rating
                   </Label>
-                  <Controller
-                    name="stars"
-                    control={control}
-                    defaultValue={0.5}
-                    render={({ field }) => (
-                      <div className="flex items-center justify-center">
+                  <div className="flex items-center">
+                    <Controller
+                      name="stars"
+                      control={control}
+                      defaultValue={0.5}
+                      render={({ field }) => (
                         <ReactStars
                           count={5}
-                          onChange={(newRating: number) => field.onChange(newRating)}
-                          size={30}
+                          size={24}
+                          color2={"#ffc107"}
                           half={true}
                           value={field.value}
-                          color2={"#ffd700"}
+                          onChange={field.onChange}
                         />
-                        <span className="ml-2 text-sm text-blue-200">{field.value} / 5</span>
-                      </div>
-                    )}
-                  />
+                      )}
+                    />
+                  </div>
                   {errorsRating.stars && <p className="text-sm text-red-300">{errorsRating.stars.message}</p>}
                 </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="description" className="text-blue-100">
                     Deskripsi
@@ -3455,86 +2699,891 @@ Terima kasih telah menggunakan layanan kami.
                     <p className="text-sm text-red-300">{errorsRating.description.message}</p>
                   )}
                 </div>
+
                 <DialogFooter>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setRatingData({ scheduleId: 0, open: false })}
-                    className="bg-white/10 border-white/20 text-blue-100 hover:bg-white/20 hover:text-white"
-                  >
+                  <Button variant="ghost" onClick={() => setRatingData({ scheduleId: 0, open: false })}>
                     Batal
                   </Button>
-                  <Button
-                    type="submit"
-                    className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border border-blue-400/30"
-                  >
-                    Kirim Rating
-                  </Button>
+                  <Button type="submit">Kirim Rating</Button>
                 </DialogFooter>
               </form>
-            </DialogContent>
-          )}
+            )}
+          </DialogContent>
         </Dialog>
 
-        <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-          {selectedSchedule && (
-            <DialogContent className="sm:max-w-[500px] bg-gradient-to-br from-blue-900 to-blue-950 text-white border border-white/20 backdrop-blur-md">
-              <DialogHeader>
-                <VisuallyHidden>
-                  <DialogTitle>Detail Jadwal</DialogTitle>
-                </VisuallyHidden>
-                <DialogTitle className="text-white">Detail Jadwal</DialogTitle>
-                <DialogDescription className="text-blue-200">
-                  Informasi lengkap tentang jadwal konsultasi
-                </DialogDescription>
-              </DialogHeader>
-              {renderScheduleDetail(selectedSchedule)}
-            </DialogContent>
-          )}
-        </Dialog>
+        {/* Schedule Detail Sheet */}
+        <Sheet open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+          <SheetContent className="bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800 text-white border-t border-white/20">
+            {selectedSchedule && (
+              <div className="h-full flex flex-col">
+                <div className="px-4 py-3 border-b border-white/10">
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-lg font-bold text-white">Detail Jadwal</h2>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-blue-200 hover:text-white"
+                      onClick={() => setIsDetailOpen(false)}
+                    >
+                      <X className="h-5 w-5" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="p-4 flex-1 overflow-auto">{renderScheduleDetail(selectedSchedule)}</div>
+              </div>
+            )}
+          </SheetContent>
+        </Sheet>
+      </div>
+    )
+  }
 
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              size="icon"
-              className="fixed bottom-6 right-6 z-50 bg-blue-500 hover:bg-blue-600 text-white border-blue-400/30 h-14 w-14 rounded-full shadow-lg md:hidden"
-            >
-              <Bell className="h-6 w-6" />
-              {notifications.filter((n) => !n.read).length > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-xs flex items-center justify-center">
-                  {notifications.filter((n) => !n.read).length}
-                </span>
+  // Desktop layout
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800 text-white relative overflow-hidden">
+      {/* Background elements */}
+      <motion.div
+        className="absolute top-0 left-0 w-full h-full pointer-events-none"
+        style={{
+          backgroundPositionY: backgroundY,
+        }}
+      >
+        <motion.div
+          className="absolute top-0 left-0 w-full h-full bg-[url('/grid.svg')] bg-[length:400px_400px] opacity-10"
+          style={{ opacity }}
+        />
+        <motion.div
+          className="absolute top-0 left-0 w-full h-full bg-[url('/scribble.svg')] bg-repeat opacity-5"
+          style={{ opacity }}
+        />
+      </motion.div>
+
+      <motion.div
+        className="fixed top-0 left-0 w-full h-full bg-[url('/concentric-rings.svg')] bg-repeat opacity-5"
+        style={{
+          backgroundPositionY: backgroundY,
+          opacity,
+        }}
+      />
+
+      <motion.div
+        className="fixed top-0 left-0 w-full h-full bg-[url('/intersecting-circles.svg')] bg-repeat opacity-5"
+        style={{
+          backgroundPositionY: backgroundY,
+          opacity,
+        }}
+      />
+
+      <div className="container mx-auto py-12 px-6 relative z-10">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          <div className="md:col-span-3">
+            <div className="mb-8">
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <h1 className="text-3xl font-bold text-white">Jadwal Konsultasi</h1>
+                  <p className="text-blue-200">Kelola semua jadwal konsultasi Anda di sini</p>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-white relative"
+                    onClick={() => setIsNotificationsOpen(true)}
+                  >
+                    <Bell className="h-5 w-5" />
+                    {notifications.filter((n) => !n.read).length > 0 && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full text-[10px] flex items-center justify-center">
+                        {notifications.filter((n) => !n.read).length}
+                      </span>
+                    )}
+                  </Button>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="ghost" size="icon" className="text-white">
+                        <MoreVertical className="h-5 w-5" />
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="bg-blue-900 border-white/20 text-white">
+                      <DropdownMenuItem
+                        onClick={() => setIsSearchOpen(!isSearchOpen)}
+                        className="flex items-center gap-2"
+                      >
+                        <Search className="h-4 w-4" /> Cari Jadwal
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => setIsFilterOpen(!isFilterOpen)}
+                        className="flex items-center gap-2"
+                      >
+                        <Filter className="h-4 w-4" /> Filter
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => setViewMode(viewMode === "list" ? "calendar" : "list")}
+                        className="flex items-center gap-2"
+                      >
+                        {viewMode === "list" ? (
+                          <>
+                            <CalendarIcon2 className="h-4 w-4" /> Tampilan Kalender
+                          </>
+                        ) : (
+                          <>
+                            <MessageSquare className="h-4 w-4" /> Tampilan List
+                          </>
+                        )}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="flex items-center gap-2">
+                        <div className="flex items-center justify-between w-full">
+                          <div className="flex items-center gap-2">
+                            <ArrowRight className="h-4 w-4" /> Swipe Actions
+                          </div>
+                          <Switch checked={isSwipeEnabled} onCheckedChange={setIsSwipeEnabled} />
+                        </div>
+                      </DropdownMenuItem>
+                    </DialogContent>
+                  </Dialog>
+
+                  <Button
+                    className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border border-blue-400/30"
+                    onClick={() => setIsAddScheduleOpen(true)}
+                  >
+                    Tambah Jadwal
+                  </Button>
+                </div>
+              </div>
+              {viewMode === "list" && (
+             <>
+              {/* Upcoming schedules section */}
+              {upcomingSchedules.length > 0 && (
+                <div className="mb-6">
+                  <h2 className="text-lg font-bold text-white mb-3 flex items-center">
+                    <CalendarDays className="h-5 w-5 mr-2 text-blue-300" />
+                    Jadwal Mendatang
+                  </h2>
+                  <div className="space-y-3">
+                    {upcomingSchedules.slice(0, 2).map((schedule) => {
+                      // Transform the schedule to match the Schedule type exactly
+                      const transformedSchedule: Schedule = {
+                        id: schedule.id,
+                        date: schedule.date,
+                        time: schedule.time,
+                        title: schedule.title,
+                        description: schedule.description,
+                        address: schedule.address,
+                        status: schedule.status,
+                        confirmed: schedule.confirmed,
+                        counselor: schedule.counselor
+                          ? {
+                            id: String(schedule.counselor.id),
+                            name: String(schedule.counselor.name),
+                            adminEmail: String(schedule.counselor.adminEmail),
+                            avatarUrl: schedule.counselor.avatarUrl || undefined,
+                          }
+                          : undefined,
+                        rating: schedule.rating
+                          ? {
+                            stars: Number(schedule.rating.stars),
+                            description: String(schedule.rating.description),
+                          }
+                          : undefined,
+                        consultation_type: "online",
+                        whatsapp_number: ""
+                      }
+                      return renderUpcomingScheduleCard(transformedSchedule)
+                    })}
+                    {upcomingSchedules.length > 2 && (
+                      <Button
+                        variant="ghost"
+                        className="w-full text-blue-300 hover:text-blue-100 hover:bg-white/10 border border-white/10"
+                        onClick={() => {
+                          setFilterOptions({ ...filterOptions, dateRange: "upcoming" })
+                          setSearchQuery("")
+                        }}
+                      >
+                        Lihat Semua ({upcomingSchedules.length})
+                      </Button>
+                    )}
+                  </div>
+                </div>
               )}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-80 p-0 bg-blue-900 border-white/20">
-            <div className="px-4 py-3 border-b border-white/10 flex justify-between items-center">
-              <h3 className="font-medium text-white">Notifikasi</h3>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-blue-200 hover:text-white text-xs"
-                onClick={() => setNotifications(notifications.map((n) => ({ ...n, read: true })))}
+
+              {/* Today's schedules section */}
+              {todaySchedules.length > 0 && (
+                <div className="mb-6">
+                  <h2 className="text-lg font-bold text-white mb-3 flex items-center">
+                    <Clock className="h-5 w-5 mr-2 text-blue-300" />
+                    Jadwal Hari Ini
+                  </h2>
+                  <div className="space-y-3">
+                    {todaySchedules.map((schedule) => {
+                      // Transform schedule to match Schedule type exactly and fix counselor typing
+                      const transformedSchedule: Schedule = {
+                        id: schedule.id,
+                        date: schedule.date,
+                        time: schedule.time,
+                        title: schedule.title,
+                        description: schedule.description,
+                        address: schedule.address,
+                        status: schedule.status,
+                        confirmed: schedule.confirmed,
+                        counselor: schedule.counselor
+                          ? {
+                              id: String(schedule.counselor.id),
+                              name: String(schedule.counselor.name),
+                              adminEmail: String(schedule.counselor.adminEmail),
+                              avatarUrl: schedule.counselor.avatarUrl || undefined,
+                            }
+                          : undefined,
+                        rating: schedule.rating
+                          ? {
+                              stars: Number(schedule.rating.stars),
+                              description: String(schedule.rating.description),
+                            }
+                          : undefined,
+                        consultation_type: schedule.consultation_type,
+                        whatsapp_number: schedule.whatsapp_number,
+                      }
+                      return renderScheduleCard(transformedSchedule)
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Tabs for schedule status */}
+              <Tabs
+                defaultValue="Pending"
+                value={activeTab}
+                onValueChange={(value) => setActiveTab(value as any)}
+                className="mt-4"
               >
-                Tandai Semua Dibaca
-              </Button>
+                <TabsList className="grid grid-cols-3 mb-4 bg-white/10 border border-white/10 p-1 rounded-xl">
+                  <TabsTrigger
+                    value="Pending"
+                    className="rounded-lg flex items-center gap-1 data-[state=active]:bg-blue-500 data-[state=active]:text-white"
+                  >
+                    <Clock3 className="h-4 w-4" />
+                    <span>Pending</span>
+                    {pendingSchedules.length > 0 && (
+                      <span className="bg-blue-600 text-white text-xs rounded-full px-1.5 py-0.5 min-w-5 text-center">
+                        {pendingSchedules.length}
+                      </span>
+                    )}
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="Accepted"
+                    className="rounded-lg flex items-center gap-1 data-[state=active]:bg-blue-500 data-[state=active]:text-white"
+                  >
+                    <CheckCircle className="h-4 w-4" />
+                    <span>Accepted</span>
+                    {acceptedSchedules.length > 0 && (
+                      <span className="bg-blue-600 text-white text-xs rounded-full px-1.5 py-0.5 min-w-5 text-center">
+                        {acceptedSchedules.length}
+                      </span>
+                    )}
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="Finished"
+                    className="rounded-lg flex items-center gap-1 data-[state=active]:bg-blue-500 data-[state=active]:text-white"
+                  >
+                    <Star className="h-4 w-4" />
+                    <span>Finished</span>
+                    {finishedSchedules.length > 0 && (
+                      <span className="bg-blue-600 text-white text-xs rounded-full px-1.5 py-0.5 min-w-5 text-center">
+                        {finishedSchedules.length}
+                      </span>
+                    )}
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="Pending" className="mt-0 space-y-4">
+                  {isLoadingInitialPending ? (
+                    <div className="space-y-4">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="p-4 bg-white/5 rounded-xl border border-white/10">
+                          <div className="flex items-start gap-3">
+                            <Skeleton className="h-10 w-10 rounded-lg bg-white/10" />
+                            <div className="flex-1">
+                              <Skeleton className="h-5 w-3/4 bg-white/10 mb-2" />
+                              <Skeleton className="h-4 w-1/2 bg-white/10 mb-2" />
+                              <Skeleton className="h-4 w-2/3 bg-white/10" />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : pendingSchedules.length > 0 ? (
+                    <InfiniteScroll
+                      dataLength={pendingSchedules.length}
+                      next={() => setSizePending(sizePending + 1)}
+                      hasMore={!isReachingEndPending}
+                      loader={
+                        <div className="flex justify-center items-center my-4">
+                          <Loader2 className="h-6 w-6 text-blue-300 animate-spin" />
+                        </div>
+                      }
+                      scrollableTarget="scrollableDiv"
+                      className="space-y-4"
+                    >
+                      {pendingSchedules.map((schedule) => {
+                        // Ensure counselor is always undefined or the correct type
+                        const transformedSchedule: Schedule = {
+                          id: schedule.id,
+                          date: schedule.date,
+                          time: schedule.time,
+                          title: schedule.title,
+                          description: schedule.description,
+                          address: schedule.address,
+                          status: schedule.status,
+                          confirmed: schedule.confirmed,
+                          counselor: schedule.counselor
+                            ? {
+                              id: String(schedule.counselor.id),
+                              name: String(schedule.counselor.name),
+                              adminEmail: String(schedule.counselor.adminEmail),
+                              avatarUrl: schedule.counselor.avatarUrl || undefined,
+                            }
+                            : undefined, // use undefined instead of null
+                          rating: schedule.rating
+                            ? {
+                              stars: Number(schedule.rating.stars),
+                              description: String(schedule.rating.description),
+                            }
+                            : undefined,
+                          consultation_type: "online",
+                          whatsapp_number: ""
+                        }
+                        return renderScheduleCard(transformedSchedule)
+                      })}
+                    </InfiniteScroll>
+                  ) : (
+                    <div className="text-center py-8 bg-white/5 rounded-xl border border-white/10">
+                      <Clock3 className="h-12 w-12 mx-auto text-blue-300/50 mb-3" />
+                      <p className="text-blue-200 mb-4">Belum ada jadwal Pending</p>
+                      <Button
+                        className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border border-blue-400/30"
+                        onClick={() => setIsAddScheduleOpen(true)}
+                      >
+                        <Plus className="h-4 w-4 mr-2" /> Tambah Jadwal
+                      </Button>
+                    </div>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="Accepted" className="mt-0 space-y-4">
+                  {isLoadingInitialAccepted ? (
+                    <div className="space-y-4">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="p-4 bg-white/5 rounded-xl border border-white/10">
+                          <div className="flex items-start gap-3">
+                            <Skeleton className="h-10 w-10 rounded-lg bg-white/10" />
+                            <div className="flex-1">
+                              <Skeleton className="h-5 w-3/4 bg-white/10 mb-2" />
+                              <Skeleton className="h-4 w-1/2 bg-white/10 mb-2" />
+                              <Skeleton className="h-4 w-2/3 bg-white/10" />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : acceptedSchedules.length > 0 ? (
+                    <InfiniteScroll
+                      dataLength={acceptedSchedules.length}
+                      next={() => setSizeAccepted(sizeAccepted + 1)}
+                      hasMore={!isReachingEndAccepted}
+                      loader={
+                        <div className="flex justify-center items-center my-4">
+                          <Loader2 className="h-6 w-6 text-blue-300 animate-spin" />
+                        </div>
+                      }
+                      scrollableTarget="scrollableDiv"
+                      className="space-y-4"
+                    >
+                      {acceptedSchedules
+                        .map((schedule) => ({
+                          ...schedule,
+                          counselor: schedule.counselor
+                            ? {
+                                id: String(schedule.counselor.id),
+                                name: String(schedule.counselor.name),
+                                adminEmail: String(schedule.counselor.adminEmail),
+                                avatarUrl: schedule.counselor.avatarUrl ?? undefined,
+                              }
+                            : undefined,
+                          rating: schedule.rating
+                            ? {
+                                stars: Number(schedule.rating.stars),
+                                description: String(schedule.rating.description),
+                              }
+                            : undefined,
+                        }))
+                        .map(renderScheduleCard)}
+                    </InfiniteScroll>
+                  ) : (
+                    <div className="text-center py-8 bg-white/5 rounded-xl border border-white/10">
+                      <CheckCircle className="h-12 w-12 mx-auto text-blue-300/50 mb-3" />
+                      <p className="text-blue-200">Belum ada jadwal Accepted</p>
+                    </div>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="Finished" className="mt-0 space-y-4">
+                  {isLoadingInitialFinished ? (
+                    <div className="space-y-4">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="p-4 bg-white/5 rounded-xl border border-white/10">
+                          <div className="flex items-start gap-3">
+                            <Skeleton className="h-10 w-10 rounded-lg bg-white/10" />
+                            <div className="flex-1">
+                              <Skeleton className="h-5 w-3/4 bg-white/10 mb-2" />
+                              <Skeleton className="h-4 w-1/2 bg-white/10 mb-2" />
+                              <Skeleton className="h-4 w-2/3 bg-white/10" />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : finishedSchedules.length > 0 ? (
+                    <InfiniteScroll
+                      dataLength={finishedSchedules.length}
+                      next={() => setSizeFinished(sizeFinished + 1)}
+                      hasMore={!isReachingEndFinished}
+                      loader={
+                        <div className="flex justify-center items-center my-4">
+                          <Loader2 className="h-6 w-6 text-blue-300 animate-spin" />
+                        </div>
+                      }
+                      scrollableTarget="scrollableDiv"
+                      className="space-y-4"
+                    >
+                      {finishedSchedules
+                        .map((schedule) => ({
+                          ...schedule,
+                          counselor: schedule.counselor
+                            ? {
+                                id: String(schedule.counselor.id),
+                                name: String(schedule.counselor.name),
+                                adminEmail: String(schedule.counselor.adminEmail),
+                                avatarUrl: schedule.counselor.avatarUrl ?? undefined,
+                              }
+                            : undefined,
+                          rating: schedule.rating
+                            ? {
+                                stars: Number(schedule.rating.stars),
+                                description: String(schedule.rating.description),
+                              }
+                            : undefined,
+                        }))
+                        .map(renderScheduleCard)}
+                    </InfiniteScroll>
+                  ) : (
+                    <div className="text-center py-8 bg-white/5 rounded-xl border border-white/10">
+                      <Star className="h-12 w-12 mx-auto text-blue-300/50 mb-3" />
+                      <p className="text-blue-200">Belum ada jadwal Finished</p>
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </>
+          ) 
+          
+        }
             </div>
-            <ScrollArea className="h-[300px]">
-              <div className="p-2 space-y-2">
-                {notifications.length > 0 ? (
-                  notifications.map(renderNotificationItem)
-                ) : (
-                  <div className="text-center py-8">
-                    <Bell className="h-8 w-8 mx-auto text-blue-300/50 mb-2" />
-                    <p className="text-blue-200 text-sm">Tidak ada notifikasi</p>
+
+           
+          </div>
+
+          <div className="md:col-span-1">
+            {viewMode === "list" && (
+              <div className="space-y-4">
+                <div className="bg-white/5 rounded-lg border border-white/10 p-4">
+                  <h3 className="text-lg font-semibold text-white mb-2">Kalender</h3>
+                  <Calendar
+                    mode="single"
+                    selected={date}
+                    onSelect={setDate}
+                    className="rounded-md border border-white/10 bg-white/5 text-white"
+                  />
+                </div>
+
+                <div className="bg-white/5 rounded-lg border border-white/10 p-4">
+                  <h3 className="text-lg font-semibold text-white mb-2">Status Jadwal</h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <div className="text-blue-200">Pending: {pendingSchedules.length}</div>
+                      <Badge className="bg-yellow-500/20 text-yellow-100 border-yellow-400/30">
+                        <Clock3 className="h-3 w-3 mr-1" /> {pendingSchedules.length}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <div className="text-blue-200">Accepted: {acceptedSchedules.length}</div>
+                      <Badge className="bg-blue-500/20 text-blue-100 border-blue-400/30">
+                        <CheckCircle className="h-3 w-3 mr-1" /> {acceptedSchedules.length}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <div className="text-blue-200">Finished: {finishedSchedules.length}</div>
+                      <Badge className="bg-green-500/20 text-green-100 border-green-400/30">
+                        <CheckCircle className="h-3 w-3 mr-1" /> {finishedSchedules.length}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white/5 rounded-lg border border-white/10 p-4">
+                  <h3 className="text-lg font-semibold text-white mb-2">Jadwal Hari Ini</h3>
+                  <div className="space-y-2">
+                    {todaySchedules.map((schedule) => (
+                      <div key={schedule.id} className="flex justify-between items-center">
+                        <div className="text-blue-200">
+                          {schedule.title}
+                          <span className="text-sm text-blue-300 ml-1">{schedule.time}</span>
+                        </div>
+                        {getStatusBadge(schedule.status)}
+                      </div>
+                    ))}
+                  </div>
+                  {todaySchedules.length === 0 && (
+                    <div className="text-center text-blue-200">Tidak ada jadwal hari ini</div>
+                  )}
+                </div>
+
+                {upcomingSchedules.length > 0 && (
+                  <div className="bg-white/5 rounded-lg border border-white/10 p-4">
+                    <h3 className="text-lg font-semibold text-white mb-2">Jadwal Mendatang</h3>
+                    <div className="space-y-2">
+                      {upcomingSchedules.map((schedule) => (
+                        <div key={schedule.id} className="flex justify-between items-center">
+                          <div className="text-blue-200">
+                            <span className="font-medium">{schedule.title}</span>
+                            <span className="text-sm text-blue-300 ml-1">{format(schedule.date, "dd MMM")}</span>
+                          </div>
+                          <span className="text-sm text-blue-300">{schedule.time}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
-            </ScrollArea>
-          </PopoverContent>
-        </Popover>
+            )}
+
+            {viewMode === "calendar" && renderCalendarView()}
+          </div>
+
+          
+
+          <Dialog open={isAddScheduleOpen} onOpenChange={setIsAddScheduleOpen}>
+            <DialogContent className="bg-blue-900 border-white/20 text-white">
+              <DialogHeader>
+                <DialogTitle>Tambah Jadwal Baru</DialogTitle>
+                <DialogDescription>Masukkan detail jadwal konsultasi baru di sini.</DialogDescription>
+              </DialogHeader>
+
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="title">Judul</Label>
+                  <Input
+                    id="title"
+                    placeholder="Masukkan judul jadwal"
+                    {...register("title")}
+                    className="bg-white/5 border-white/20 text-white placeholder:text-blue-200/50 focus:border-blue-400"
+                  />
+                  {errors.title && <p className="text-sm text-red-300">{errors.title.message}</p>}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="date">Tanggal</Label>
+                  <div className="relative">
+                    <Controller
+                      name="date"
+                      control={scheduleControl}
+                      defaultValue={date?.toISOString()}
+                      render={({ field }) => (
+                        <div
+                          className="p-2 bg-white/5 border border-white/20 rounded-md text-white flex items-center justify-between cursor-pointer"
+                          onClick={() => document.getElementById("calendar-popup")?.click()}
+                        >
+                          <span>{date ? format(date, "dd MMMM yyyy") : "Pilih tanggal"}</span>
+                          <CalendarIcon className="h-4 w-4 text-blue-300" />
+                          <Dialog>
+                            <DialogTrigger id="calendar-popup" className="hidden">
+                              Open
+                            </DialogTrigger>
+                            <DialogContent className="bg-blue-900 border-white/20 text-white">
+                              <Calendar
+                                mode="single"
+                                selected={date}
+                                onSelect={(newDate) => {
+                                  setDate(newDate)
+                                  field.onChange(newDate)
+                                }}
+                                className="rounded-md border border-white/10 bg-white/5 text-white"
+                              />
+                            </DialogContent>
+                          </Dialog>
+                        </div>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="time">Waktu</Label>
+                  <Input
+                    id="time"
+                    type="time"
+                    {...register("time")}
+                    className="bg-white/5 border-white/20 text-white focus:border-blue-400"
+                  />
+                  {errors.time && <p className="text-sm text-red-300">{errors.time.message}</p>}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Tipe Konsultasi</Label>
+                  <div className="flex gap-4">
+                    <div className="flex items-center">
+                      <input
+                        type="radio"
+                        id="offline"
+                        value="offline"
+                        {...register("consultation_type")}
+                        className="mr-2"
+                        defaultChecked
+                      />
+                      <Label htmlFor="offline" className="cursor-pointer">
+                        Offline
+                      </Label>
+                    </div>
+                    <div className="flex items-center">
+                      <input
+                        type="radio"
+                        id="online"
+                        value="online"
+                        {...register("consultation_type")}
+                        className="mr-2"
+                      />
+                      <Label htmlFor="online" className="cursor-pointer">
+                        Online
+                      </Label>
+                    </div>
+                  </div>
+                  {errors.consultation_type && (
+                    <p className="text-sm text-red-300">{errors.consultation_type.message}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="address">Lokasi</Label>
+                  <Input
+                    id="address"
+                    placeholder="Masukkan alamat konsultasi atau 'Online'"
+                    {...register("address")}
+                    className="bg-white/5 border-white/20 text-white placeholder:text-blue-200/50 focus:border-blue-400"
+                    disabled={watch("consultation_type") === "offline"}
+                  />
+                  {errors.address && <p className="text-sm text-red-300">{errors.address.message}</p>}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="meeting_link">Link Meeting (untuk konsultasi online)</Label>
+                  <Input
+                    id="meeting_link"
+                    placeholder="Masukkan link meeting"
+                    {...register("meeting_link")}
+                    className="bg-white/5 border-white/20 text-white placeholder:text-blue-200/50 focus:border-blue-400"
+                  />
+                  {errors.meeting_link && <p className="text-sm text-red-300">{errors.meeting_link.message}</p>}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="whatsapp_number">Nomor WhatsApp</Label>
+                  <Input
+                    id="whatsapp_number"
+                    placeholder="Contoh: 08123456789"
+                    {...register("whatsapp_number")}
+                    className="bg-white/5 border-white/20 text-white placeholder:text-blue-200/50 focus:border-blue-400"
+                  />
+                  {errors.whatsapp_number && <p className="text-sm text-red-300">{errors.whatsapp_number.message}</p>}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="counselor">Konselor</Label>
+                  <select
+                    id="counselor"
+                    {...register("counselor_id")}
+                    className="w-full border rounded-md p-2 bg-white/5 border-white/20 text-white focus:border-blue-400"
+                  >
+                    <option value="">Pilih Konselor</option>
+                    {counselors.map((counselor) => (
+                      <option key={counselor.id} value={counselor.id}>
+                        {counselor.name}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.counselor_id && <p className="text-sm text-red-300">{errors.counselor_id.message}</p>}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="description">Deskripsi</Label>
+                  <Input
+                    id="description"
+                    placeholder="Masukkan deskripsi jadwal"
+                    {...register("description")}
+                    className="bg-white/5 border-white/20 text-white placeholder:text-blue-200/50 focus:border-blue-400"
+                  />
+                  {errors.description && <p className="text-sm text-red-300">{errors.description.message}</p>}
+                </div>
+
+                <DialogFooter>
+                  <Button variant="ghost" onClick={() => setIsAddScheduleOpen(false)}>
+                    Batal
+                  </Button>
+                  <Button type="submit">Tambah Jadwal</Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isRescheduleOpen} onOpenChange={setIsRescheduleOpen}>
+            <DialogContent className="bg-blue-900 border-white/20 text-white">
+              <DialogHeader>
+                <DialogTitle>Reschedule Jadwal</DialogTitle>
+                <DialogDescription>Masukkan tanggal dan waktu baru untuk jadwal ini.</DialogDescription>
+              </DialogHeader>
+
+              {rescheduleData && (
+                <form
+                  onSubmit={handleSubmit(async (data) => {
+                    await handleReschedule(rescheduleData.id, date || rescheduleData.date, data.time)
+                    setIsRescheduleOpen(false)
+                  })}
+                  className="space-y-4"
+                >
+                  <div className="space-y-2">
+                    <Label htmlFor="date">Tanggal Baru</Label>
+                    <div className="relative">
+                      <Controller
+                        name="date"
+                        control={scheduleControl}
+                        defaultValue={date?.toISOString()}
+                        render={({ field }) => (
+                          <div
+                            className="p-2 bg-white/5 border border-white/20 rounded-md text-white flex items-center justify-between cursor-pointer"
+                            onClick={() => document.getElementById("calendar-popup")?.click()}
+                          >
+                            <span>
+                              {date ? format(date, "dd MMMM yyyy") : format(rescheduleData.date, "dd MMMM yyyy")}
+                            </span>
+                            <CalendarIcon className="h-4 w-4 text-blue-300" />
+                            <Dialog>
+                              <DialogTrigger id="calendar-popup" className="hidden">
+                                Open
+                              </DialogTrigger>
+                              <DialogContent className="bg-blue-900 border-white/20 text-white">
+                                <Calendar
+                                  mode="single"
+                                  selected={date}
+                                  onSelect={(newDate) => {
+                                    setDate(newDate)
+                                    field.onChange(newDate)
+                                  }}
+                                  className="rounded-md border border-white/10 bg-white/5 text-white"
+                                />
+                              </DialogContent>
+                            </Dialog>
+                          </div>
+                        )}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="time">Waktu Baru</Label>
+                    <Input
+                      id="time"
+                      type="time"
+                      {...register("time")}
+                      className="bg-white/5 border-white/20 text-white focus:border-blue-400"
+                    />
+                    {errors.time && <p className="text-sm text-red-300">{errors.time.message}</p>}
+                  </div>
+
+                  <DialogFooter>
+                    <Button variant="ghost" onClick={() => setIsRescheduleOpen(false)}>
+                      Batal
+                    </Button>
+                    <Button type="submit">Simpan Perubahan</Button>
+                  </DialogFooter>
+                </form>
+              )}
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={ratingData.open} onOpenChange={() => setRatingData({ scheduleId: 0, open: false })}>
+            <DialogContent className="bg-blue-900 border-white/20 text-white">
+              <DialogHeader>
+                <DialogTitle>Beri Rating</DialogTitle>
+                <DialogDescription>Berikan rating dan deskripsi konsultasi Anda.</DialogDescription>
+              </DialogHeader>
+
+              <form onSubmit={handleSubmitRating(onSubmitRating)} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="stars">Rating</Label>
+                  <div className="flex items-center">
+                    <Controller
+                      name="stars"
+                      control={control}
+                      defaultValue={0.5}
+                      render={({ field }) => (
+                        <ReactStars
+                          count={5}
+                          size={24}
+                          color2={"#ffc107"}
+                          half={true}
+                          value={field.value}
+                          onChange={field.onChange}
+                        />
+                      )}
+                    />
+                  </div>
+                  {errorsRating.stars && <p className="text-sm text-red-300">{errorsRating.stars.message}</p>}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="description">Deskripsi</Label>
+                  <Input
+                    id="description"
+                    placeholder="Berikan komentar tentang konsultasi Anda"
+                    {...registerRating("description")}
+                    className="bg-white/5 border-white/20 text-white placeholder:text-blue-200/50 focus:border-blue-400"
+                  />
+                  {errorsRating.description && (
+                    <p className="text-sm text-red-300">{errorsRating.description.message}</p>
+                  )}
+                </div>
+
+                <DialogFooter>
+                  <Button variant="ghost" onClick={() => setRatingData({ scheduleId: 0, open: false })}>
+                    Batal
+                  </Button>
+                  <Button type="submit">Kirim Rating</Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          <Sheet open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+            <SheetContent className="bg-blue-900 border-white/20 text-white">
+              <SheetHeader>
+                <SheetTitle>Detail Jadwal</SheetTitle>
+                <SheetDescription>Informasi lengkap tentang jadwal konsultasi</SheetDescription>
+              </SheetHeader>
+              {selectedSchedule && renderScheduleDetail(selectedSchedule)}
+            </SheetContent>
+          </Sheet>
+        </div>
       </div>
     </div>
   )
 }
+
+// Handle consultation type change
+

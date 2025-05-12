@@ -9,7 +9,7 @@ const faqs = [
   {
     question: "Apakah layanan ini gratis untuk mahasiswa?",
     answer:
-      "Ya, layanan dasar kami gratis untuk semua mahasiswa. Namun, ada beberapa layanan premium yang memerlukan biaya tambahan. Kami menawarkan paket khusus dengan harga terjangkau untuk mahasiswa yang membutuhkan konsultasi lebih mendalam atau pelatihan khusus.",
+      "Tidak layananan kami 100% gratis untuk semua mahasiswa. Karena layanan kami geratis kami tidak menerima lokasi diluar jangkauan kami.",
     category: "Biaya",
   },
   {
@@ -18,16 +18,11 @@ const faqs = [
       "Proses konsultasi biasanya berlangsung sekitar 1-2 jam, tergantung pada kebutuhan individu. Untuk konsultasi pertama, kami menyarankan untuk menyediakan waktu hingga 90 menit agar konselor dapat memahami kebutuhan Anda dengan baik dan memberikan saran yang tepat sasaran.",
     category: "Konsultasi",
   },
-  {
-    question: "Apakah saya bisa mendapatkan sertifikat setelah mengikuti pelatihan?",
-    answer:
-      "Ya, kami menyediakan sertifikat digital untuk setiap pelatihan yang Anda ikuti di platform kami. Sertifikat ini dapat diunduh langsung dari akun Anda dan dapat ditambahkan ke CV atau profil LinkedIn Anda untuk meningkatkan kredibilitas profesional Anda.",
-    category: "Pelatihan",
-  },
+  
   {
     question: "Bagaimana cara mendaftar untuk sesi mentoring?",
     answer:
-      "Anda dapat mendaftar untuk sesi mentoring melalui dashboard akun Anda setelah login ke platform kami. Pilih menu 'Mentoring', kemudian pilih mentor yang sesuai dengan kebutuhan Anda, dan jadwalkan sesi pada waktu yang tersedia. Anda akan menerima konfirmasi melalui email beserta tautan untuk bergabung dengan sesi mentoring.",
+      "Anda dapat mendaftar untuk sesi mentoring melalui dashboard akun Anda setelah login ke platform kami. Pilih menu 'jadwal', kemudian pilih mentor yang sesuai dengan kebutuhan Anda, dan jadwalkan sesi pada waktu yang tersedia. Anda akan menerima konfirmasi melalui email beserta tautan untuk bergabung dengan sesi mentoring.",
     category: "Mentoring",
   },
   {

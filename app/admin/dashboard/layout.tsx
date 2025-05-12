@@ -4,7 +4,8 @@ import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import AdminSidebar from "../../components/admin/AdminSidebar"
 import AdminHeader from "../../components/admin/AdminHeader"
-
+import { useWebPush } from '@/hooks/useWebPush';
+import { useSessionContext } from '@supabase/auth-helpers-react';
 export default function AdminDashboardLayout({
   children,
 }: {
@@ -20,7 +21,8 @@ export default function AdminDashboardLayout({
       router.push("/admin/login")
     }
   }, [router])
-
+const { session } = useSessionContext();
+  useWebPush(!!session);
   return (
     <div className="flex h-screen bg-gray-100">
       <AdminSidebar />

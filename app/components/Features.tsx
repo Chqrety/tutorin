@@ -41,13 +41,14 @@ const features = [
   },
   {
     icon: BookOpen,
-    title: "Pelatihan Skill",
-    description: "Akses ke berbagai pelatihan untuk meningkatkan soft skill dan hard skill",
+    title: "FORUM KONSULTASI",
+    description: "Diskusikan berbagai topik terkait karir dan pendidikan dengan sesama mahasiswa",
+   
     color: "from-sky-400 to-blue-500",
     benefits: [
-      "Workshop interaktif dengan sertifikasi",
-      "Kurikulum yang disesuaikan dengan kebutuhan industri",
-      "Praktik langsung dengan studi kasus nyata",
+      "Platform diskusi interaktif",
+      "Berbagi pengalaman dan pengetahuan",
+      "cari solusi bersama untuk tantangan karir",
     ],
   },
 ]

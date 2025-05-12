@@ -15,20 +15,21 @@ const steps = [
     icon: FileText,
     color: "from-blue-400 to-cyan-400",
     details: [
-      "Buat akun dengan email atau media sosial",
-      "Isi data pendidikan dan pengalaman",
-      "Tentukan minat dan tujuan karir Anda",
+      "Buat akun dengan email aktif",
+      "Isi data diri dan pendidikan",
+      "langsung mulai konsultasi",
     ],
   },
   {
-    title: "Pilih Konselor",
-    description: "Pilih konselor yang sesuai dengan kebutuhan dan minat Anda.",
+    title: "Konsultasi dengan Konselor",
+    description: "Chat Konsultasi secara real-time dengan konselor.",
     icon: MessageCircle,
     color: "from-indigo-400 to-purple-400",
     details: [
-      "Lihat profil dan spesialisasi konselor",
-      "Baca ulasan dari pengguna lain",
-      "Pilih berdasarkan kecocokan dengan kebutuhan Anda",
+      "Chat dengan konselor yang profesional",
+      "Tanya jawab seputar karir dan pendidikan",
+      "Dapatkan saran dan rekomendasi",
+      "Jadwalkan sesi konsultasi lebih lanjut",
     ],
   },
   {
@@ -37,9 +38,9 @@ const steps = [
     icon: Video,
     color: "from-blue-500 to-blue-600",
     details: [
-      "Pilih jadwal yang tersedia",
-      "Tentukan metode konsultasi (video/chat)",
-      "Dapatkan pengingat otomatis sebelum sesi",
+      "Masukan tanggal dan waktu yang diinginkan",
+      "Tentukan Lokasi",
+      "Konsultasi dengan konselor pilihan Anda",
     ],
   },
 ]
@@ -130,7 +131,7 @@ export default function TutorialKonsultasi() {
               />
             </div>
 
-            <div className="flex justify-between absolute w-full top-0 left-0 transform -translate-y-1/2">
+            <div className="flex justify-between absolute w-full top-4 left-0 transform -translate-y-1/2">
               {steps.map((step, idx) => (
                 <motion.div
                   key={idx}

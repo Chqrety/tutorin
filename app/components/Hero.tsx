@@ -1,244 +1,208 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
-import { motion } from "framer-motion"
-import Link from "next/link"
-import { ArrowRight, HeartHandshake } from "lucide-react"
+import { useRef } from "react"
+import { motion, useScroll, useTransform } from "framer-motion"
+import { useInView } from "react-intersection-observer"
+import Image from "next/image"
+import { ArrowRight, Sparkles, Users, BookOpen } from "lucide-react"
 
-const Hero = () => {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
-  const animationRef = useRef<number>(0)
-  const liquidPointsRef = useRef<
-    Array<{ x: number; y: number; originX: number; originY: number; dx: number; dy: number }>
-  >([])
+export default function Hero() {
+  const [ref, inView] = useInView({
+    triggerOnce: true,
+    threshold: 0.1,
+  })
 
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
+  const containerRef = useRef(null)
+  const { scrollYProgress } = useScroll({
+    target: containerRef,
+    offset: ["start end", "end start"],
+  })
 
-    const ctx = canvas.getContext("2d")
-    if (!ctx) return
-
-    // Set canvas to full screen
-    const resizeCanvas = () => {
-      canvas.width = window.innerWidth
-      canvas.height = window.innerHeight
-
-      // Initialize liquid points in a grid
-      initLiquidPoints()
-    }
-
-    // Initialize liquid points
-    const initLiquidPoints = () => {
-      liquidPointsRef.current = []
-      const gridSize = 40 // Distance between points
-      const width = canvas.width
-      const height = canvas.height
-
-      for (let x = 0; x <= width; x += gridSize) {
-        for (let y = 0; y <= height; y += gridSize) {
-          liquidPointsRef.current.push({
-            x: x,
-            y: y,
-            originX: x,
-            originY: y,
-            dx: 0,
-            dy: 0,
-          })
-        }
-      }
-    }
-
-    // Handle mouse movement
-    const handleMouseMove = (e: MouseEvent) => {
-      setMousePosition({ x: e.clientX, y: e.clientY })
-    }
-
-    // Animation function
-    const animate = () => {
-      if (!ctx || !canvas) return
-
-      // Clear canvas
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-      // Draw liquid effect
-      drawLiquid(ctx)
-
-      // Continue animation loop
-      animationRef.current = requestAnimationFrame(animate)
-    }
-
-    // Draw liquid effect
-    const drawLiquid = (ctx: CanvasRenderingContext2D) => {
-      const points = liquidPointsRef.current
-      const mouse = mousePosition
-      const radius = 200 // Influence radius
-      const strength = 20 // Distortion strength
-
-      // Update points based on mouse position
-      for (let i = 0; i < points.length; i++) {
-        const point = points[i]
-
-        // Calculate distance from point to mouse
-        const dx = mouse.x - point.originX
-        const dy = mouse.y - point.originY
-        const distance = Math.sqrt(dx * dx + dy * dy)
-
-        // Apply force based on distance (inverse square law)
-        const force = radius / Math.max(distance, 1)
-
-        // Calculate displacement
-        if (distance < radius) {
-          point.dx = (dx / distance) * force * strength
-          point.dy = (dy / distance) * force * strength
-        } else {
-          // Return to original position
-          point.dx *= 0.9
-          point.dy *= 0.9
-        }
-
-        // Update position with easing
-        point.x = point.originX + point.dx
-        point.y = point.originY + point.dy
-      }
-
-      // Draw metaballs
-      ctx.fillStyle = "rgba(30, 64, 175, 0.05)" // Blue color with transparency
-
-      // Draw each point as a circle
-      for (let i = 0; i < points.length; i++) {
-        const point = points[i]
-        ctx.beginPath()
-        // Size based on distance to mouse
-        const dx = mouse.x - point.originX
-        const dy = mouse.y - point.originY
-        const distance = Math.sqrt(dx * dx + dy * dy)
-        const radius = Math.max(5, 30 * (1 - distance / 300))
-
-        ctx.arc(point.x, point.y, radius, 0, Math.PI * 2)
-        ctx.fill()
-      }
-
-      // Connect points with bezier curves for a more liquid look
-      ctx.fillStyle = "rgba(59, 130, 246, 0.1)" // Blue color
-      ctx.beginPath()
-
-      // Create grid cells and draw bezier curves
-      const gridSize = Math.sqrt(points.length)
-      for (let y = 0; y < gridSize - 1; y++) {
-        for (let x = 0; x < gridSize - 1; x++) {
-          const index = y * gridSize + x
-          if (index + gridSize + 1 < points.length) {
-            const p0 = points[index]
-            const p1 = points[index + 1]
-            const p2 = points[index + gridSize]
-            const p3 = points[index + gridSize + 1]
-
-            // Skip if any point is undefined
-            if (!p0 || !p1 || !p2 || !p3) continue
-
-            ctx.moveTo(p0.x, p0.y)
-            ctx.bezierCurveTo((p0.x + p1.x) / 2, p0.y, (p0.x + p1.x) / 2, p1.y, p1.x, p1.y)
-            ctx.bezierCurveTo(p1.x, (p1.y + p3.y) / 2, p3.x, (p1.y + p3.y) / 2, p3.x, p3.y)
-            ctx.bezierCurveTo((p2.x + p3.x) / 2, p3.y, (p2.x + p3.x) / 2, p2.y, p2.x, p2.y)
-            ctx.bezierCurveTo(p2.x, (p0.y + p2.y) / 2, p0.x, (p0.y + p2.y) / 2, p0.x, p0.y)
-          }
-        }
-      }
-      ctx.fill()
-    }
-
-    // Set up event listeners and start animation
-    window.addEventListener("resize", resizeCanvas)
-    window.addEventListener("mousemove", handleMouseMove)
-    resizeCanvas()
-    animate()
-
-    // Clean up
-    return () => {
-      window.removeEventListener("resize", resizeCanvas)
-      window.removeEventListener("mousemove", handleMouseMove)
-      cancelAnimationFrame(animationRef.current)
-    }
-  }, [])
+  const y = useTransform(scrollYProgress, [0, 1], [0, -50])
+  const opacity = useTransform(scrollYProgress, [0, 0.3, 0.6, 1], [0.6, 1, 1, 0.6])
 
   return (
-    <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800">
-      {/* Canvas for liquid effect */}
-      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full z-0" />
+    <section
+      ref={containerRef}
+      className="py-24 relative overflow-hidden bg-gradient-to-b from-blue-900 to-blue-950 min-h-screen flex items-center"
+    >
+      {/* Background elements */}
+      <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-blue-950/50 to-transparent"></div>
+      <div className="absolute -top-40 -left-40 w-80 h-80 bg-blue-500/10 rounded-full filter blur-3xl"></div>
+      <div className="absolute -bottom-40 -right-40 w-80 h-80 bg-indigo-500/10 rounded-full filter blur-3xl"></div>
 
-      {/* Content container */}
-      <div className="container mx-auto px-6 relative z-10">
-        <div className="flex flex-col items-center justify-center">
-          {/* Glass card */}
+      {/* Floating elements */}
+      <motion.div
+        className="absolute top-1/4 right-10 w-20 h-20 rounded-full border border-blue-400/20 backdrop-blur-sm"
+        style={{ y, opacity }}
+      />
+
+      <motion.div
+        className="absolute bottom-1/4 left-10 w-12 h-12 rounded-full border border-blue-400/20 backdrop-blur-sm"
+        animate={{
+          y: [0, -15, 0],
+          opacity: [0.3, 0.5, 0.3],
+        }}
+        transition={{
+          duration: 5,
+          repeat: Number.POSITIVE_INFINITY,
+          repeatType: "reverse",
+        }}
+      />
+
+      <div ref={ref} className="container mx-auto px-6 relative z-10">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+          {/* Left side: Content */}
           <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            className="backdrop-blur-lg bg-white/10 p-8 md:p-12 rounded-3xl border border-white/20 shadow-xl max-w-3xl w-full"
+            initial={{ opacity: 0, x: -30 }}
+            animate={inView ? { opacity: 1, x: 0 } : {}}
+            transition={{ duration: 0.5, delay: 0.3 }}
+            className="order-2 lg:order-1"
           >
-            <div className="text-center">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.2, duration: 0.5 }}
-                className="flex justify-center mb-8"
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={inView ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.5 }}
+              className="inline-block mb-4 px-6 py-2 rounded-full bg-blue-500/10 backdrop-blur-sm border border-blue-400/20"
+            >
+              <span className="text-blue-200 font-medium flex items-center">
+                <Sparkles className="w-4 h-4 mr-2" />
+                Platform Konsultasi Karir
+              </span>
+            </motion.div>
+
+            <motion.h1
+              initial={{ opacity: 0, y: 20 }}
+              animate={inView ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="text-5xl md:text-6xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-white to-blue-200"
+            >
+              TUTORIN
+            </motion.h1>
+
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={inView ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="text-blue-100/80 text-xl mb-8 max-w-lg"
+            >
+              Temukan potensi terbaik dan jalur karir yang tepat untuk masa depan Anda bersama konsultan profesional
+              kami.
+            </motion.p>
+
+            <div className="flex flex-wrap gap-4">
+              <motion.a
+                href="#layanan"
+                initial={{ opacity: 0, y: 20 }}
+                animate={inView ? { opacity: 1, y: 0 } : {}}
+                transition={{ duration: 0.5, delay: 0.3 }}
+                className="inline-flex items-center px-6 py-3 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 text-white font-medium shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 transition-all duration-300 hover:scale-105"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
-                <div className="bg-gradient-to-br from-blue-400 to-blue-600 p-4 rounded-full shadow-lg border border-blue-300/30">
-                  <HeartHandshake className="w-10 h-10 text-white" />
+                Mulai Konsultasi
+                <motion.span
+                  animate={{ x: [0, 5, 0] }}
+                  transition={{
+                    duration: 1.5,
+                    repeat: Number.POSITIVE_INFINITY,
+                    repeatType: "loop",
+                  }}
+                >
+                  <ArrowRight className="ml-2 w-5 h-5" />
+                </motion.span>
+              </motion.a>
+
+              <motion.a
+                href="#tentang"
+                initial={{ opacity: 0, y: 20 }}
+                animate={inView ? { opacity: 1, y: 0 } : {}}
+                transition={{ duration: 0.5, delay: 0.4 }}
+                className="inline-flex items-center px-6 py-3 rounded-full backdrop-blur-sm bg-white/5 border border-white/10 text-white font-medium hover:bg-white/10 transition-all duration-300"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                Pelajari Lebih Lanjut
+              </motion.a>
+            </div>
+
+            {/* Stats */}
+            <motion.div
+              className="flex flex-wrap gap-6 mt-12"
+              initial={{ opacity: 0, y: 20 }}
+              animate={inView ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.5, delay: 0.5 }}
+            >
+              <div className="flex items-center">
+                <div className="w-12 h-12 rounded-full backdrop-blur-md bg-white/10 border border-white/20 flex items-center justify-center mr-3">
+                  <Users className="w-6 h-6 text-blue-300" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-white">1000+</div>
+                  <div className="text-blue-200 text-sm">Mahasiswa Terbantu</div>
+                </div>
+              </div>
+
+              <div className="flex items-center">
+                <div className="w-12 h-12 rounded-full backdrop-blur-md bg-white/10 border border-white/20 flex items-center justify-center mr-3">
+                  <BookOpen className="w-6 h-6 text-blue-300" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-white">50+</div>
+                  <div className="text-blue-200 text-sm">Program Karir</div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+
+          {/* Right side: Image */}
+          <motion.div
+            initial={{ opacity: 0, x: 30 }}
+            animate={inView ? { opacity: 1, x: 0 } : {}}
+            transition={{ duration: 0.5, delay: 0.4 }}
+            className="order-1 lg:order-2"
+          >
+            <div className="relative">
+              {/* Main image with glass effect */}
+              <motion.div
+                className="rounded-3xl overflow-hidden backdrop-blur-md bg-white/5 border border-white/10 p-3"
+                whileHover={{ scale: 1.02 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="relative aspect-[4/3] rounded-2xl overflow-hidden">
+                  <Image
+                    src="/hero.png?height=600&width=800"
+                    alt="Konsultasi Karir Mahasiswa"
+                    width={800}
+                    height={600}
+                    className="object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-blue-900/70 to-transparent"></div>
+
+                  {/* Image caption */}
+                  <div className="absolute bottom-0 left-0 right-0 p-6">
+                    <h3 className="text-white text-xl font-bold">Konsultasi Karir Profesional</h3>
+                    <p className="text-blue-100/80 text-sm">Bimbingan personal untuk masa depan cerah</p>
+                  </div>
                 </div>
               </motion.div>
 
-              <motion.h1
-                className="font-sans text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-white mb-6 leading-tight"
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.3, duration: 0.8 }}
-              >
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-100 to-cyan-200">
-                  Temukan Potensi Terbaikmu
-                </span>
-              </motion.h1>
-
-              <motion.p
-                className="text-lg md:text-xl font-light text-blue-100/90 mb-10 max-w-2xl mx-auto leading-relaxed"
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.5, duration: 0.8 }}
-              >
-                Konsultasi minat bakat khusus mahasiswa untuk meraih karir impianmu
-              </motion.p>
-
+              {/* Floating card */}
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.7, duration: 0.8 }}
-                className="flex justify-center"
+                className="absolute -bottom-10 -right-10 w-64 rounded-2xl backdrop-blur-md bg-white/10 border border-white/20 p-4 shadow-lg"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={inView ? { opacity: 1, scale: 1 } : {}}
+                transition={{ duration: 0.5, delay: 0.6 }}
               >
-                <Link href="/daftar">
-                  <motion.button
-                    whileHover={{
-                      scale: 1.05,
-                      boxShadow: "0 0 25px rgba(59, 130, 246, 0.5)",
-                    }}
-                    whileTap={{ scale: 0.95 }}
-                    className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium py-4 px-10 rounded-full inline-flex items-center border border-blue-400/30 transition-all shadow-lg"
-                  >
-                    <span className="text-lg">Mulai Sekarang</span>
-                    <motion.div
-                      animate={{ x: [0, 5, 0] }}
-                      transition={{
-                        duration: 1.5,
-                        repeat: Number.POSITIVE_INFINITY,
-                        repeatType: "loop",
-                        ease: "easeInOut",
-                      }}
-                    >
-                      <ArrowRight className="ml-3 w-5 h-5" />
-                    </motion.div>
-                  </motion.button>
-                </Link>
+                <div className="flex items-center mb-3">
+                  <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center mr-3">
+                    <Sparkles className="w-5 h-5 text-blue-300" />
+                  </div>
+                  <div className="text-white font-medium">Temukan Potensimu</div>
+                </div>
+                <p className="text-blue-100/80 text-sm">
+                  Kami membantu Anda menemukan jalur karir yang sesuai dengan minat dan bakat Anda
+                </p>
               </motion.div>
             </div>
           </motion.div>
@@ -247,5 +211,3 @@ const Hero = () => {
     </section>
   )
 }
-
-export default Hero
